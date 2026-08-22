@@ -50,3 +50,11 @@ Things that matter:
 For each screen: a mockup, plus a short note on what you decided and why. Then a compact style guide — palette with hex values, type choices, and the rules for the conversation UI so it can be applied consistently to screens you haven't drawn.
 
 Feel free to push back on anything above if you think there's a better answer. I'd rather see one strong opinion than four safe options.
+
+## One note on what happens next
+
+These mockups get handed to an engineer to build in Phaser 4, so a couple of things make that handoff much cheaper:
+
+- **Name your colours.** A palette with hex values and semantic names (`--plaster`, `--shadow-cool`, `--subtitle-bg`) can be lifted straight into code. A picture of a palette can't.
+- **Separate the world from the interface.** The town itself is pixel art on a 32px grid. The overlay — subtitles, the listening indicator, the coach panel — will be built as regular UI over the game canvas, so it can use real fonts and scale cleanly. Please be explicit about which layer each element belongs to.
+- **Say what animates.** If the listening indicator pulses or a subtitle fades in, describe the timing and easing. Motion is where this UI will live or die, and it's the thing screenshots can't carry.
