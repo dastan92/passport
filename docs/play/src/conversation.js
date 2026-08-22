@@ -222,18 +222,27 @@ export async function updateImpression(r) {
 // ---------------------------------------------------------------------------
 export async function judgeMission(r, mission, playerText) {
   if (!mission || !hasLLM()) return null
-  const past = memoryOf(r.id).slice(-4)
-  const convo = past.map(t => 'THEM: ' + t.p + ' / YOU: ' + t.r).join(' // ')
-  const sys = 'You judge whether a language learner achieved a goal in conversation. ' +
+  // The goal is usually met ACROSS turns (ask the price, hear it, then order),
+  // so the player's own sentences are aggregated into one numbered list — an
+  // earlier format buried turn one inside a dialogue transcript and the judge
+  // over-weighted the final line, vetoing correct completions.
+  const past = memoryOf(r.id).slice(-5)
+  const saidAll = past.map(t => t.p).concat([playerText])
+  const numbered = saidAll.map((t, i) => (i + 1) + ') "' + t + '"').join(' ')
+  const replies = past.map(t => t.r).join(' / ')
+  const sys = 'You judge whether a language learner achieved a goal over the course of a conversation. ' +
     'Answer with exactly one word: YES or NO. Nothing else.'
   const q = [
     'GOAL: ' + mission.objective,
-    past.length ? 'EARLIER IN THIS CONVERSATION: ' + convo : '',
-    'THEY JUST SAID: "' + playerText + '"',
+    'EVERYTHING THE LEARNER HAS SAID TO YOU IN THIS CONVERSATION, in order: ' + numbered,
+    replies ? 'Your own replies, for context: ' + replies : '',
     'Their grammar does not need to be correct and their spelling may be rough.',
-    'Answer YES only if, taking the whole conversation together, they have now',
-    'genuinely communicated the goal to you. Answer NO if they only asked about',
-    'it, talked around it, or you had to guess what they meant.',
+    'Judge their sentences TAKEN TOGETHER: the goal may be completed across',
+    'several turns (for example asking a price in one sentence and stating a',
+    'quantity in a later one — together that is a purchase). Answer YES if, by',
+    'the end of the list, they have genuinely communicated the goal. Answer NO',
+    'only if, even combining every sentence, they have not — they merely asked',
+    'about it, talked around it, or you had to guess.',
     'YES or NO:',
   ].filter(Boolean).join(' ')
   try {
