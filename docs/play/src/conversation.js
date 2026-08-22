@@ -9,6 +9,41 @@
 const MODEL = 'gemini-3.5-flash-lite'
 const ENDPOINT = m => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`
 
+// The dev server proxies Gemini with a server-side key, so the browser never
+// holds one. On static hosting (GitHub Pages) there is no proxy, and the
+// player's own key from localStorage is used instead.
+let serverKey = null
+export const serverReady = fetch('/api/status')
+  .then(r => r.ok ? r.json() : null)
+  .then(j => { serverKey = !!(j && j.gemini); return serverKey })
+  .catch(() => { serverKey = false; return false })
+
+export function hasLLM() { return serverKey || !!getKey() }
+
+async function callModel(body) {
+  if (serverKey) {
+    const res = await fetch('/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}))
+      throw new Error(e.error || String(res.status))
+    }
+    return res.json()
+  }
+  const key = getKey()
+  if (!key) throw new Error('no key')
+  const res = await fetch(`${ENDPOINT(MODEL)}?key=${encodeURIComponent(key)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 200)}`)
+  return res.json()
+}
+
 export function getKey() {
   return localStorage.getItem('passport_gemini_key') || ''
 }
@@ -80,26 +115,16 @@ ${extra.knowledge || ''}${extra.mood || ''}${summary}${mission ? `
 SITUATION: this foreigner has been sent to you with an errand. ${mission.objective} If they manage it, respond naturally in character — hand the thing over, answer the question, react like it is a normal moment of your day. Never reveal this was arranged.` : ''}`
 }
 
-async function callGemini(r, text, key, mission, extra) {
+async function callGemini(r, text, mission, extra) {
   const history = memoryOf(r.id).flatMap(t => ([
     { role: 'user', parts: [{ text: t.p }] },
     { role: 'model', parts: [{ text: t.r }] },
   ]))
-  const body = {
+  const data = await callModel({
     systemInstruction: { parts: [{ text: systemPrompt(r, mission, extra) }] },
     contents: [...history, { role: 'user', parts: [{ text }] }],
     generationConfig: { maxOutputTokens: 200 },
-  }
-  const res = await fetch(`${ENDPOINT(MODEL)}?key=${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`${res.status} ${err.slice(0, 200)}`)
-  }
-  const data = await res.json()
   const out = data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || ''
   if (!out.trim()) throw new Error('empty reply')
   return out.trim()
@@ -139,11 +164,11 @@ function scriptedReply(r, text, mission) {
 
 export async function ask(r, text, mission, extra) {
   noteProduction(text)
-  const key = getKey()
+  await serverReady
   let reply, source
-  if (key) {
+  if (hasLLM()) {
     try {
-      reply = await callGemini(r, text, key, mission, extra)
+      reply = await callGemini(r, text, mission, extra)
       source = 'gemini'
     } catch (e) {
       reply = scriptedReply(r, text, mission)
@@ -168,23 +193,19 @@ export async function askCoach(text, mission, mstate) {
 
 Their current mission: "${mission.titleEn}" — ${mission.brief} If they seem lost, remind them; the magic phrase hint is: ${mission.hint}` : ''}
 Missions completed so far: ${mstate?.done?.length || 0}. Inventory: ${mstate?.inventory?.join(', ') || 'nothing yet'}.`
-  if (!key) {
+  await serverReady
+  if (!hasLLM()) {
     await new Promise(r => setTimeout(r, 300))
     if (mission && /qué|how|what|help|ayuda|stuck|lost/i.test(text))
       return { reply: `${mission.brief} ${mission.hint}`, source: 'scripted' }
     return { reply: 'Without an API key I am running on fumes — but here is the golden rule: walk up, say "namaste", and try. ' + (mission ? mission.hint : ''), source: 'scripted' }
   }
   try {
-    const body = {
+    const data = await callModel({
       systemInstruction: { parts: [{ text: sys }] },
       contents: [{ role: 'user', parts: [{ text }] }],
       generationConfig: { maxOutputTokens: 250 },
-    }
-    const res = await fetch(`${ENDPOINT(MODEL)}?key=${encodeURIComponent(key)}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     })
-    if (!res.ok) throw new Error(String(res.status))
-    const data = await res.json()
     const out = data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || ''
     return { reply: out.trim() || '(no reply)', source: 'gemini' }
   } catch (e) {

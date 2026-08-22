@@ -137,103 +137,151 @@ export function spawnAmbient(scene, occupiedTiles) {
 }
 
 // ---------------------------------------------------------------------------
-// Sound: no audio files — the Mediterranean is synthesized. Waves (filtered
-// noise swells), fountain trickle, church bell on the quarter hour, cicadas.
-// Starts on first user gesture (browser autoplay rules).
+// Sound. Music is real (Scott Buckley, CC-BY 4.0 — see game/assets/CREDITS.md),
+// crossfaded track to track. Ambience is deliberately sparse: the old version
+// was continuous filtered noise, which is exactly what a desk fan sounds like.
+// Waves are now discrete swells with an envelope, and they only come up when
+// you are near the shore.
 // ---------------------------------------------------------------------------
+const TRACKS = [
+  './assets/music/HomeWasYou.mp3',
+  './assets/music/MemoriesOfStone.mp3',
+  './assets/music/Convergence.mp3',
+]
+
 export function createSoundscape() {
   let ctx = null
   let started = false
   let muted = localStorage.getItem('passport_mute') === '1'
+  let musicGain = null
+  let ambGain = null
+  let waveTimer = null
+  let bellTimer = null
+  let audioEl = null
+  let trackIndex = Math.floor(Math.random() * TRACKS.length)
+
+  // --- music: HTMLAudio through the graph so we can duck and crossfade ------
+  function playNextTrack() {
+    if (!ctx || muted) return
+    const el = new Audio(TRACKS[trackIndex % TRACKS.length])
+    trackIndex++
+    el.crossOrigin = 'anonymous'
+    el.preload = 'auto'
+    const src = ctx.createMediaElementSource(el)
+    const g = ctx.createGain()
+    g.gain.value = 0
+    src.connect(g).connect(musicGain)
+
+    const FADE = 6
+    el.addEventListener('canplay', () => {
+      g.gain.cancelScheduledValues(ctx.currentTime)
+      g.gain.setValueAtTime(0.0001, ctx.currentTime)
+      g.gain.exponentialRampToValueAtTime(0.85, ctx.currentTime + FADE)
+    }, { once: true })
+    el.addEventListener('timeupdate', function onTime() {
+      if (!el.duration || Number.isNaN(el.duration)) return
+      const left = el.duration - el.currentTime
+      if (left < FADE + 0.5) {
+        el.removeEventListener('timeupdate', onTime)
+        g.gain.cancelScheduledValues(ctx.currentTime)
+        g.gain.setValueAtTime(g.gain.value, ctx.currentTime)
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + FADE)
+        setTimeout(() => { try { el.pause() } catch {} }, FADE * 1000 + 200)
+        playNextTrack() // overlap: the next one fades in while this fades out
+      }
+    })
+    el.addEventListener('error', () => setTimeout(playNextTrack, 1500), { once: true })
+    el.play().catch(() => {})
+    audioEl = el
+  }
+
+  // --- a single wave: noise burst shaped by an envelope --------------------
+  function wave() {
+    if (!ctx || muted) return
+    const dur = 2.6 + Math.random() * 2.2
+    const buf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate)
+    const d = buf.getChannelData(0)
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1)
+    const src = ctx.createBufferSource()
+    src.buffer = buf
+    const lp = ctx.createBiquadFilter()
+    lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(300, ctx.currentTime)
+    lp.frequency.linearRampToValueAtTime(1400, ctx.currentTime + dur * 0.35)
+    lp.frequency.linearRampToValueAtTime(220, ctx.currentTime + dur)
+    const g = ctx.createGain()
+    const t0 = ctx.currentTime
+    g.gain.setValueAtTime(0.0001, t0)
+    g.gain.linearRampToValueAtTime(0.09, t0 + dur * 0.3)   // swell in
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)  // hiss out
+    src.connect(lp).connect(g).connect(ambGain)
+    src.start()
+    src.stop(t0 + dur + 0.05)
+    waveTimer = setTimeout(wave, (dur + 2 + Math.random() * 4) * 1000)
+  }
+
+  function bell() {
+    if (!ctx || muted) return
+    const t0 = ctx.currentTime
+    for (const [freq, amp] of [[392, 0.1], [523, 0.05], [660, 0.025], [784, 0.012]]) {
+      const o = ctx.createOscillator()
+      o.frequency.value = freq
+      const g = ctx.createGain()
+      g.gain.setValueAtTime(amp, t0)
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 4.2)
+      o.connect(g).connect(ambGain)
+      o.start(t0)
+      o.stop(t0 + 4.3)
+    }
+    bellTimer = setTimeout(bell, 150000 + Math.random() * 60000)
+  }
 
   function start() {
     if (started || muted) return
     ctx = new (window.AudioContext || window.webkitAudioContext)()
     started = true
-
-    const master = ctx.createGain()
-    master.gain.value = 0.5
-    master.connect(ctx.destination)
-
-    // --- waves: looping noise through a slow-swelling lowpass ---------------
-    const noiseLen = 4
-    const buf = ctx.createBuffer(1, ctx.sampleRate * noiseLen, ctx.sampleRate)
-    const data = buf.getChannelData(0)
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.6
-    const noise = ctx.createBufferSource()
-    noise.buffer = buf
-    noise.loop = true
-    const lp = ctx.createBiquadFilter()
-    lp.type = 'lowpass'
-    lp.frequency.value = 400
-    const waveGain = ctx.createGain()
-    waveGain.gain.value = 0.12
-    noise.connect(lp).connect(waveGain).connect(master)
-    noise.start()
-    // swell LFO
-    const lfo = ctx.createOscillator()
-    lfo.frequency.value = 0.09
-    const lfoGain = ctx.createGain()
-    lfoGain.gain.value = 0.07
-    lfo.connect(lfoGain).connect(waveGain.gain)
-    lfo.start()
-
-    // --- fountain: high bandpassed trickle ---------------------------------
-    const noise2 = ctx.createBufferSource()
-    noise2.buffer = buf
-    noise2.loop = true
-    noise2.playbackRate.value = 1.7
-    const bp = ctx.createBiquadFilter()
-    bp.type = 'bandpass'
-    bp.frequency.value = 3200
-    bp.Q.value = 0.8
-    const fGain = ctx.createGain()
-    fGain.gain.value = 0.018
-    noise2.connect(bp).connect(fGain).connect(master)
-    noise2.start()
-
-    // --- cicadas: amplitude-modulated high shimmer -------------------------
-    const cic = ctx.createOscillator()
-    cic.type = 'sawtooth'
-    cic.frequency.value = 5600
-    const cicMod = ctx.createOscillator()
-    cicMod.frequency.value = 22
-    const cicModGain = ctx.createGain()
-    cicModGain.gain.value = 0.004
-    const cicGain = ctx.createGain()
-    cicGain.gain.value = 0.004
-    cicMod.connect(cicModGain).connect(cicGain.gain)
-    cic.connect(cicGain).connect(master)
-    cic.start(); cicMod.start()
-
-    // --- church bell: struck every 90s -------------------------------------
-    function bell() {
-      if (!ctx) return
-      const t0 = ctx.currentTime
-      for (const [freq, amp] of [[392, 0.16], [523, 0.08], [660, 0.04]]) {
-        const o = ctx.createOscillator()
-        o.frequency.value = freq
-        const g2 = ctx.createGain()
-        g2.gain.setValueAtTime(amp, t0)
-        g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 3.5)
-        o.connect(g2).connect(master)
-        o.start(t0)
-        o.stop(t0 + 3.6)
-      }
-      setTimeout(bell, 90000)
-    }
-    setTimeout(bell, 12000)
-
-    window.__soundscape = { ctx, master }
+    musicGain = ctx.createGain()
+    musicGain.gain.value = 0.34          // present but never in the way
+    musicGain.connect(ctx.destination)
+    ambGain = ctx.createGain()
+    ambGain.gain.value = 0.5
+    ambGain.connect(ctx.destination)
+    playNextTrack()
+    setTimeout(wave, 2000)
+    bellTimer = setTimeout(bell, 45000)
+    window.__soundscape = { ctx, musicGain, ambGain }
   }
 
   function toggleMute() {
     muted = !muted
     localStorage.setItem('passport_mute', muted ? '1' : '0')
-    if (muted && ctx) { ctx.suspend() }
-    else if (!muted) { started && ctx ? ctx.resume() : start() }
+    if (muted) {
+      clearTimeout(waveTimer); clearTimeout(bellTimer)
+      if (audioEl) { try { audioEl.pause() } catch {} }
+      if (ctx) ctx.suspend()
+    } else if (started && ctx) {
+      ctx.resume()
+      if (audioEl) audioEl.play().catch(() => {})
+      wave(); bell()
+    } else {
+      start()
+    }
     return muted
   }
 
-  return { start, toggleMute, isMuted: () => muted }
+  // Duck the music while someone is talking so speech stays legible.
+  function duck(on) {
+    if (!ctx || !musicGain) return
+    musicGain.gain.cancelScheduledValues(ctx.currentTime)
+    musicGain.gain.linearRampToValueAtTime(on ? 0.1 : 0.34, ctx.currentTime + 0.6)
+  }
+
+  // Waves louder near the shore (south edge of the map).
+  function setListener(z) {
+    if (!ambGain || !ctx) return
+    const near = Math.max(0, Math.min(1, (z + 6) / 26))
+    ambGain.gain.setTargetAtTime(0.18 + near * 0.7, ctx.currentTime, 0.8)
+  }
+
+  return { start, toggleMute, isMuted: () => muted, duck, setListener }
 }

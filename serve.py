@@ -22,14 +22,18 @@ ROOT = os.path.join(HERE, "game")
 CACHE = os.path.join(HERE, ".tts-cache")
 
 FISH_URL = "https://api.fish.audio/v1/tts"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
+              "{model}:generateContent")
 FISH_MODEL = os.environ.get("FISH_MODEL", "s2.1-pro")
 TIMEOUT_S = 15  # conversational lines are longer than dota barks
 
 
 def _load_env():
-    """FISH_* from environment, then passport/.env, then dota-coach/.env."""
+    """FISH_*/GEMINI_* from environment, then passport/.env, then dota-coach/.env."""
     conf = {}
-    for name in ("FISH_API_KEY", "FISH_VOICE_ID", "FISH_MODEL"):
+    for name in ("FISH_API_KEY", "FISH_VOICE_ID", "FISH_MODEL",
+                 "GEMINI_API_KEY", "GEMINI_MODEL"):
         if os.environ.get(name):
             conf[name] = os.environ[name]
     for envfile in (os.path.join(HERE, ".env"),
@@ -42,7 +46,8 @@ def _load_env():
                 if not line or line.startswith("#") or "=" not in line:
                     continue
                 k, v = line.split("=", 1)
-                if k.startswith("FISH_") and k not in conf and v.strip():
+                if (k.startswith("FISH_") or k.startswith("GEMINI_")) \
+                        and k not in conf and v.strip():
                     conf[k] = v.strip()
     return conf
 
@@ -108,7 +113,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass
 
+    def _json(self, code, obj):
+        payload = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_GET(self):
+        if self.path == "/api/status":
+            self._json(200, {
+                "gemini": bool(ENV.get("GEMINI_API_KEY")),
+                "fish": bool(ENV.get("FISH_API_KEY")),
+                "model": ENV.get("GEMINI_MODEL", GEMINI_MODEL),
+            })
+            return
         if self.path == "/tts/status":
             payload = json.dumps({
                 "fish": bool(ENV.get("FISH_API_KEY")),
@@ -123,6 +143,44 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
+        if self.path == "/gemini":
+            key = ENV.get("GEMINI_API_KEY")
+            if not key:
+                self._json(404, {"error": "no gemini key on server"})
+                return
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length)
+            except Exception:
+                self.send_error(400)
+                return
+            model = ENV.get("GEMINI_MODEL", GEMINI_MODEL)
+            req = urllib.request.Request(
+                GEMINI_URL.format(model=model) + "?key=" + key,
+                data=body,
+                headers={"Content-Type": "application/json"},
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    out = resp.read()
+            except urllib.error.HTTPError as e:
+                detail = ""
+                try:
+                    detail = e.read()[:400].decode(errors="replace")
+                except Exception:
+                    pass
+                self._json(e.code, {"error": f"gemini {e.code}: {detail}"})
+                return
+            except Exception as e:
+                self._json(502, {"error": f"gemini unreachable: {e}"})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+            return
+
         if self.path != "/tts":
             self.send_error(404)
             return
@@ -162,6 +220,7 @@ class Server(socketserver.ThreadingTCPServer):
 if __name__ == "__main__":
     handler = functools.partial(Handler, directory=ROOT)
     with Server(("127.0.0.1", PORT), handler) as httpd:
-        fish = "fish audio ON" if ENV.get("FISH_API_KEY") else "fish audio off (browser voices)"
-        print(f"Pueblo dev server on http://localhost:{PORT} — {fish}")
+        fish = "fish ON" if ENV.get("FISH_API_KEY") else "fish off"
+        gem = "gemini ON" if ENV.get("GEMINI_API_KEY") else "gemini off"
+        print(f"Pueblo dev server on http://localhost:{PORT} — {gem}, {fish}")
         httpd.serve_forever()

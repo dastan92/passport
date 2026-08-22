@@ -16,9 +16,9 @@
     <div id="hud">
       <div id="brand">PUEBLO</div>
       <div id="hud-right">
-        <button id="voice" class="chip">voz ✓</button>
-        <button id="mute" class="chip">sonido ✓</button>
-        <button id="key-open" class="chip">clave</button>
+        <button id="voice" class="chip">voice ✓</button>
+        <button id="mute" class="chip">sound ✓</button>
+        <button id="key-open" class="chip">API</button>
         <button id="coach-toggle" class="chip">coach · C</button>
         <span id="clock">10:30</span>
       </div>
@@ -44,7 +44,7 @@
       <div id="cv-foot">
         <input id="cv-input" type="text" autocomplete="off" spellcheck="false"
                placeholder="hindi mein likho… (roman script)" />
-        <button id="cv-send" class="chip primary">bhejo</button>
+        <button id="cv-send" class="chip primary">send</button>
       </div>
       <div id="cv-status"></div>
     </div>
@@ -68,15 +68,15 @@
     <div id="key-panel" class="hidden">
       <div class="kp-box">
         <h3>Gemini API key</h3>
-        <p>Residents run on Gemini. Without a key they fall back to a few scripted
-           lines. The key is stored only in this browser's localStorage and sent
-           straight to Google — but any key used in a browser is visible to anyone
-           with access to this machine, so use a restricted key.</p>
+        <p id="key-note">Residents run on Gemini. When you play from the local dev
+           server the key is read server-side from your .env — you do not need to
+           enter anything here. This box is only for static hosting, where the key
+           is stored in this browser's localStorage.</p>
         <input id="key-input" type="password" placeholder="AIza…" autocomplete="off" />
         <div class="kp-row">
-          <button id="key-save" class="chip primary">guardar</button>
-          <button id="key-cancel" class="chip">cancelar</button>
-          <button id="key-forget" class="chip danger">olvidar todo</button>
+          <button id="key-save" class="chip primary">save</button>
+          <button id="key-cancel" class="chip">cancel</button>
+          <button id="key-forget" class="chip danger">reset game</button>
         </div>
       </div>
     </div>
@@ -94,6 +94,7 @@
     </div>
 
     <div id="controls-hint">WASD move · E talk · C coach · Esc exit</div>
+    <div id="credit">music: Scott Buckley · scottbuckley.com.au · CC-BY 4.0</div>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>

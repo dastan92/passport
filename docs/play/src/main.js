@@ -6,7 +6,7 @@ import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
 import { buildTown, isWalkable, tileToWorld, groundHeight, PLAZA_H } from './town.js'
 import { buildPerson, RESIDENTS } from './people.js'
 import { spawnAmbient, createSoundscape } from './ambient.js'
-import { ask, askCoach, getKey, setKey, forgetAll, learnerState } from './conversation.js'
+import { ask, askCoach, getKey, setKey, forgetAll, learnerState, hasLLM, serverReady } from './conversation.js'
 import { activeMission, missionFor, completeMission, missionState } from './missions.js'
 import * as tts from './tts.js'
 import { tryReveal, factsHeldBy, knownFacts, resetKnowledge } from './knowledge.js'
@@ -241,8 +241,9 @@ function openConvo(r) {
   addLine(cvLog, '', r.opener, 'them')
   if (showTranslation && r.openerEn) addLine(cvLog, '', r.openerEn, 'tr')
   panel.classList.remove('hidden')
+  sound.duck(true)
   talkPrompt.classList.add('hidden')
-  cvStatus.textContent = getKey() ? '' : 'no API key · limited replies'
+  cvStatus.textContent = hasLLM() ? '' : 'no API key · limited replies'
   if (getPatience(r.id) < 20) setPatience(r.id, 20) // time cools tempers a little
   renderPatience()
   tts.speak(r.opener, r.id)
@@ -252,6 +253,7 @@ function openConvo(r) {
 
 function closeConvo() {
   tts.stop()
+  sound.duck(false)
   talking = null
   panel.classList.add('hidden')
   cvInput.blur()
@@ -408,21 +410,22 @@ el('key-open').addEventListener('click', () => {
 el('key-save').addEventListener('click', () => {
   setKey(keyInput.value.trim())
   keyPanel.classList.add('hidden')
-  el('key-open').textContent = getKey() ? 'clave ✓' : 'clave'
+  el('key-open').textContent = getKey() ? 'API ✓' : 'API'
+serverReady.then(ok => { if (ok) el('key-open').classList.add('hidden') })
 })
 el('key-cancel').addEventListener('click', () => keyPanel.classList.add('hidden'))
 el('key-forget').addEventListener('click', () => { resetKnowledge(); forgetAll() })
-el('key-open').textContent = getKey() ? 'clave ✓' : 'clave'
+el('key-open').textContent = getKey() ? 'API ✓' : 'API'
 el('mute').addEventListener('click', () => {
-  el('mute').textContent = sound.toggleMute() ? 'sonido ✕' : 'sonido ✓'
+  el('mute').textContent = sound.toggleMute() ? 'sound ✕' : 'sound ✓'
 })
-el('mute').textContent = sound.isMuted() ? 'sonido ✕' : 'sonido ✓'
+el('mute').textContent = sound.isMuted() ? 'sound ✕' : 'sound ✓'
 el('voice').addEventListener('click', () => {
   const on = tts.toggle()
-  el('voice').textContent = on ? 'voz ✓' : 'voz ✕'
+  el('voice').textContent = on ? 'voice ✓' : 'voice ✕'
   el('voice').classList.toggle('on', on)
 })
-el('voice').textContent = tts.isEnabled() ? 'voz ✓' : 'voz ✕'
+el('voice').textContent = tts.isEnabled() ? 'voice ✓' : 'voice ✕'
 el('voice').classList.toggle('on', tts.isEnabled())
 
 // global keys
@@ -509,6 +512,7 @@ function step(dt) {
 
   // sea shimmer
   sea.position.y = -0.35 + Math.sin(t * 0.6) * 0.03
+  sound.setListener(player.position.z)
 
   // proximity
   if (!talking) {
