@@ -26,8 +26,13 @@ FISH_URL = "https://api.fish.audio/v1/tts"
 GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
 GEMINI_TTS_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
                   "{model}:generateContent")
-# $10 per 1M audio-output tokens; ~25 audio tokens per second of speech.
-GEMINI_TTS_USD_PER_SEC = 10.0 * 25 / 1_000_000
+# gemini-2.5-flash-preview-tts is the cheapest TTS Google offers. Measured
+# 2026-08-22: 24.9 audio tokens per second of speech. There is no flash-lite
+# TTS (404). gemini-3.1-flash-tts-preview is worse on both axes — 32 tok/sec
+# AND double the rate — and pro-preview-tts is the same rate at double price.
+# Billing below uses the tokens the API actually reports, not an estimate.
+GEMINI_TTS_IN_USD_PER_M = 0.50
+GEMINI_TTS_OUT_USD_PER_M = 10.00
 
 # Prebuilt Gemini voices + a per-character style prompt. The style line is
 # ordinary English and is NOT spoken — it only conditions delivery.
@@ -97,8 +102,14 @@ def gemini_tts(text, resident):
             _t.sleep(0.4 * attempt)
             continue
         pcm = base64.b64decode(b64)
-        secs = len(pcm) / (24000 * 2)
-        SPEND["tts"]["usd"] += secs * GEMINI_TTS_USD_PER_SEC
+        um = d.get("usageMetadata") or {}
+        in_tok = um.get("promptTokenCount", 0) or 0
+        out_tok = um.get("candidatesTokenCount", 0) or 0
+        if not out_tok:  # fall back to the measured 24.9 tok/sec rate
+            out_tok = int(len(pcm) / (24000 * 2) * 24.9)
+        SPEND["tts"]["usd"] += (in_tok * GEMINI_TTS_IN_USD_PER_M
+                                + out_tok * GEMINI_TTS_OUT_USD_PER_M) / 1_000_000
+        SPEND["tts"]["audio_tokens"] = SPEND["tts"].get("audio_tokens", 0) + out_tok
         return _wav(pcm), "gemini"
     return None, "gemini tts failed"
 GEMINI_MODEL = "gemini-3.5-flash-lite"
