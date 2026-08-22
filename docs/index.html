@@ -542,7 +542,7 @@ If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> 
 
 <h2>7. How it actually works</h2>
 
-<p>The honest tech section. Nothing here is speculative — every piece exists today; the work is assembly and taste.</p>
+<p>The honest tech section. Every piece here exists and ships today — though some of it is still labelled "preview," which is a word you should read as "will move under you."</p>
 
 <div class="table-wrap">
 <table>
@@ -588,7 +588,7 @@ If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> 
 
 <p>The obvious way to build this is the cheap classic: speech-to-text, feed the text to an LLM, speak the answer back. Don't. <strong>Speech recognition is actively hostile to a game about pronunciation</strong>, because it's doing the opposite of your job — it has a language model inside it whose entire purpose is to guess what you <em>meant</em>. You mangle <em>quisiera</em>, and the transcript helpfully says "quisiera." The evidence is gone before Rosa ever sees it, and the one thing you needed the game to notice has been quietly cleaned up.</p>
 
-<p>So we skip transcription entirely. The player's raw audio goes straight into a model that accepts audio natively, and Rosa reacts to <em>how you actually said it</em>. This costs about four cents an hour of gameplay. It is the single best value in the entire design.</p>
+<p>So we skip transcription entirely. The player's raw audio goes straight into a model that accepts audio natively, and Rosa reacts to <em>how you actually said it</em>. The remarkable part is the price: sending real audio instead of text adds well under a cent per hour of play. The most pedagogically important decision in the project is also nearly free.</p>
 
 <div class="aside">
 <span class="eyebrow">The Flash-Lite trap</span>
