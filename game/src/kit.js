@@ -345,6 +345,128 @@ export function boat(rng, hue) {
   return g
 }
 
+// --- facade / street-level helpers (low-camera pass) -----------------------
+
+// small wooden signboard with painted text via canvas texture
+export function signboard(text, colour = PAL.woodDark) {
+  const g = new THREE.Group()
+  const canvas = document.createElement('canvas')
+  canvas.width = 256
+  canvas.height = 64
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#' + new THREE.Color(colour).getHexString()
+  ctx.fillRect(0, 0, 256, 64)
+  ctx.strokeStyle = 'rgba(247,239,224,0.85)'
+  ctx.lineWidth = 3
+  ctx.strokeRect(6, 6, 244, 52)
+  ctx.fillStyle = '#f7efe0'
+  ctx.font = 'bold 30px Georgia, serif'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, 128, 34)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.anisotropy = 4
+  const board = new THREE.Mesh(
+    new THREE.BoxGeometry(1.7, 0.44, 0.07),
+    [
+      mat(colour), mat(colour), mat(colour), mat(colour),
+      new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 }),
+      mat(colour),
+    ],
+  )
+  board.castShadow = true
+  board.receiveShadow = true
+  // textured +z face turned to look down -z (facades face -z locally)
+  board.rotation.y = Math.PI
+  g.add(board)
+  return g
+}
+
+// hanging plant on a small iron bracket — for facades
+export function hangingPlant(rng) {
+  const g = new THREE.Group()
+  const bracket = rbox(0.05, 0.05, 0.4, PAL.iron, 0.02)
+  bracket.position.set(0, 0, -0.2)
+  g.add(bracket)
+  const pot = cyl(0.14, 0.1, 0.18, 7, PAL.terracottaDeep)
+  pot.position.set(0, -0.32, -0.36)
+  g.add(pot)
+  const n = 3 + Math.floor(rng() * 2)
+  for (let i = 0; i < n; i++) {
+    const leaf = sph(0.08 + rng() * 0.05, rng() > 0.5 ? PAL.olive : PAL.oliveDark, 0)
+    leaf.position.set((rng() - 0.5) * 0.24, -0.24 - rng() * 0.2, -0.36 + (rng() - 0.5) * 0.24)
+    g.add(leaf)
+  }
+  const bloom = sph(0.05, rng() > 0.5 ? PAL.bougainvillea : PAL.geranium, 0)
+  bloom.position.set((rng() - 0.5) * 0.2, -0.3, -0.32)
+  g.add(bloom)
+  return g
+}
+
+// stone doorstep slab
+export function doorstep(w = 1.4) {
+  const s = rbox(w, 0.12, 0.55, PAL.stone, 0.03)
+  s.position.y = 0.06
+  return s
+}
+
+// terracotta chimney for rooflines
+export function chimney(rng) {
+  const g = new THREE.Group()
+  const stack = rbox(0.34, 0.7 + rng() * 0.35, 0.34, PAL.plasterOchre, 0.04)
+  stack.position.y = 0.4
+  g.add(stack)
+  const cap = rbox(0.44, 0.1, 0.44, PAL.terracottaDeep, 0.03)
+  cap.position.y = 0.82
+  g.add(cap)
+  return g
+}
+
+// drainpipe running down a facade
+export function drainpipe(h) {
+  const g = new THREE.Group()
+  const pipe = cyl(0.05, 0.05, h, 6, PAL.terracottaDeep)
+  pipe.position.y = h / 2
+  g.add(pipe)
+  const elbow = cyl(0.05, 0.06, 0.3, 6, PAL.terracottaDeep)
+  elbow.rotation.x = -1.1
+  elbow.position.set(0, 0.12, -0.12)
+  g.add(elbow)
+  return g
+}
+
+// cafe umbrella
+export function cafeUmbrella(rng, colour = 0xe8c56a) {
+  const g = new THREE.Group()
+  const pole = cyl(0.035, 0.035, 2.1, 6, PAL.woodDark)
+  pole.position.y = 1.05
+  g.add(pole)
+  const top = new THREE.Mesh(new THREE.ConeGeometry(1.15, 0.5, 8), mat(colour, { flat: true }))
+  top.position.y = 2.05
+  top.rotation.y = rng() * Math.PI
+  top.castShadow = true
+  g.add(top)
+  return g
+}
+
+// small stone fountain jet / spout column
+export function fountainJet() {
+  const g = new THREE.Group()
+  const jet = cyl(0.05, 0.09, 0.65, 6, 0xbcd8ee)
+  jet.position.y = 0.32
+  const m2 = new THREE.MeshStandardMaterial({ color: 0xbcd8ee, roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.7 })
+  jet.material = m2
+  jet.castShadow = false
+  g.add(jet)
+  const splash = sph(0.12, 0xdceefb, 0)
+  splash.material = m2
+  splash.castShadow = false
+  splash.position.y = 0.68
+  splash.scale.y = 0.5
+  g.add(splash)
+  return g
+}
+
 export function rock(rng) {
   const g = new THREE.Group()
   for (let i = 0; i < 3; i++) {

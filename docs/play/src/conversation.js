@@ -22,7 +22,7 @@ const learner = JSON.parse(localStorage.getItem('passport_learner') || '{"level"
 export function learnerState() { return learner }
 function noteProduction(text) {
   learner.turns++
-  for (const w of text.toLowerCase().match(/[a-záéíóúñü]+/g) || []) {
+  for (const w of text.toLowerCase().match(/[a-z\u0900-\u097F]+/g) || []) {
     if (w.length > 2 && !learner.words.includes(w)) learner.words.push(w)
   }
   if (learner.turns > 40) learner.level = 'A2'
@@ -45,7 +45,7 @@ export function forgetAll() {
   location.reload()
 }
 
-function systemPrompt(r, mission) {
+function systemPrompt(r, mission, extra = {}) {
   const past = memoryOf(r.id)
   const summary = past.length
     ? `You know this foreigner already — here is what has passed between you (oldest first):\n` +
@@ -53,7 +53,7 @@ function systemPrompt(r, mission) {
       `\nPick up where things left off. Reference shared history naturally, the way neighbours do.`
     : `You are meeting this foreigner for the first time. Word has gone around that someone new arrived, so you are curious.`
 
-  return `You are ${r.name}, ${r.age} years old, ${r.role} in Pueblo, a small coastal town in Andalusia.
+  return `You are ${r.name}, ${r.age} years old, ${r.role} in Pueblo, a small coastal town. (The town looks Mediterranean, but everyone here speaks Hindi — it is simply the town's language; never comment on it.)
 
 WHO YOU ARE
 ${r.persona}
@@ -64,29 +64,29 @@ ${r.doing ? `\nRight now you are ${r.doing}.` : ''}
 ${r.agenda ? `\nOn your mind today: ${r.agenda}` : ''}
 
 THE CONVERSATION
-You are talking with a foreigner who is learning Spanish (level: roughly ${learner.level}). This is a real conversation in the street, not a customer-service exchange. That means:
+You are talking with a foreigner who is learning Hindi (level: roughly ${learner.level}). This is a real conversation in the street, not a customer-service exchange. That means:
 - You have somewhere to take it. Ask them things. Change the subject when you feel like it. Mention what is on your mind. Gossip about the neighbours. A conversation where you only answer and never push is a failed one.
 - React honestly. If their Spanish is confusing, be confused — ask "¿cómo?", guess wrong, laugh kindly. If they say something interesting, dig in. If they are rude, be offended. If they nail a phrase they used to fumble, notice it out loud.
 - You are busy and alive. You can cut things short, get distracted by something in the street, serve another customer mid-sentence, or keep them talking because you are enjoying yourself.
-- You are NOT a language teacher and you are NOT an assistant. Never explain grammar. Never translate. Never break character. You simply do not speak English${r.id === 'coach' ? ' — EXCEPT you, Marco: you DO speak English. Mix warm English support with simple Spanish, and always push them toward trying things on real neighbours rather than practising on you' : ''}.
+- You are NOT a language teacher and you are NOT an assistant. Never explain grammar. Never translate. Never break character. You simply do not speak English${r.id === 'coach' ? ' — EXCEPT you, Marco: you DO speak English. Mix warm English support with simple Hindi, and always push them toward trying things on real neighbours rather than practising on you' : ''}.
 
 HOW YOU SPEAK
-- Spanish only (Andalusian warmth fine; keep spelling standard so learners can look words up).
-- Match their level, one small step above (${learner.level} now): short sentences and present tense for beginners, more freedom as they grow. Being real matters more than being simple — one vivid short sentence beats three flat ones.
+- Hindi only, but ALWAYS written in ROMAN script (Latin letters), never Devanagari. Example: "Main accha hoon, aur tum?" NOT "मैं अच्छा हूँ". Natural everyday Hindi — arre, beta, bhai, yaar all fine. Keep spellings simple and consistent so a learner can read them out loud.
+- Match their level, one small step above (${learner.level} now): short simple sentences for beginners, more freedom as they grow. Being real matters more than being simple — one vivid short sentence beats three flat ones.
 - 1–3 sentences per turn, like actual speech. No emoji, no asterisks, no stage directions.
 
-${summary}${mission ? `
+${extra.knowledge || ''}${extra.mood || ''}${summary}${mission ? `
 
 SITUATION: this foreigner has been sent to you with an errand. ${mission.objective} If they manage it, respond naturally in character — hand the thing over, answer the question, react like it is a normal moment of your day. Never reveal this was arranged.` : ''}`
 }
 
-async function callGemini(r, text, key, mission) {
+async function callGemini(r, text, key, mission, extra) {
   const history = memoryOf(r.id).flatMap(t => ([
     { role: 'user', parts: [{ text: t.p }] },
     { role: 'model', parts: [{ text: t.r }] },
   ]))
   const body = {
-    systemInstruction: { parts: [{ text: systemPrompt(r, mission) }] },
+    systemInstruction: { parts: [{ text: systemPrompt(r, mission, extra) }] },
     contents: [...history, { role: 'user', parts: [{ text }] }],
     generationConfig: { maxOutputTokens: 200 },
   }
@@ -137,13 +137,13 @@ function scriptedReply(r, text, mission) {
   return bank.default
 }
 
-export async function ask(r, text, mission) {
+export async function ask(r, text, mission, extra) {
   noteProduction(text)
   const key = getKey()
   let reply, source
   if (key) {
     try {
-      reply = await callGemini(r, text, key, mission)
+      reply = await callGemini(r, text, key, mission, extra)
       source = 'gemini'
     } catch (e) {
       reply = scriptedReply(r, text, mission)
@@ -164,7 +164,7 @@ export async function askCoach(text, mission, mstate) {
   // deliberately NOT noteProduction(): this pane is English, and the learner
   // model must only ever count Spanish the player actually produced.
   const key = getKey()
-  const sys = `You are Marco, the player's language coach in Pueblo, a Spanish coastal town where every other character speaks only Spanish. You are the ONE person who speaks English. Your job: help the player survive and learn — translate phrases they ask about, explain what someone probably meant, give them the exact Spanish sentence to try next, and encourage them to go say it out loud to a real resident. Keep replies short and practical (2-4 sentences). Never do a long grammar lecture.${mission ? `
+  const sys = `You are Marco, the player's language coach in Pueblo, a coastal town where every other character speaks only Hindi. You are the ONE person who speaks English. Your job: help the player survive and learn — translate phrases they ask about, explain what someone probably meant, give them the exact Hindi sentence to try next (romanized Hindi in Latin script, e.g. "mujhe teen kele chahiye" — never Devanagari), and encourage them to go say it to a real resident. Keep replies short and practical (2-4 sentences). Never do a long grammar lecture.${mission ? `
 
 Their current mission: "${mission.titleEn}" — ${mission.brief} If they seem lost, remind them; the magic phrase hint is: ${mission.hint}` : ''}
 Missions completed so far: ${mstate?.done?.length || 0}. Inventory: ${mstate?.inventory?.join(', ') || 'nothing yet'}.`
@@ -172,7 +172,7 @@ Missions completed so far: ${mstate?.done?.length || 0}. Inventory: ${mstate?.in
     await new Promise(r => setTimeout(r, 300))
     if (mission && /qué|how|what|help|ayuda|stuck|lost/i.test(text))
       return { reply: `${mission.brief} ${mission.hint}`, source: 'scripted' }
-    return { reply: 'Without an API key I am running on fumes — but here is the golden rule: walk up, say "hola", and try. ' + (mission ? mission.hint : ''), source: 'scripted' }
+    return { reply: 'Without an API key I am running on fumes — but here is the golden rule: walk up, say "namaste", and try. ' + (mission ? mission.hint : ''), source: 'scripted' }
   }
   try {
     const body = {

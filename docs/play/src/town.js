@@ -3,6 +3,7 @@ import {
   PAL, mat, rbox, cyl, sph, seeded,
   flowerPot, oliveTree, palmTree, grassTuft, crate, barrel, bench, lamp,
   marketStall, awning, bunting, boat, rock,
+  signboard, hangingPlant, doorstep, chimney, drainpipe, cafeUmbrella, fountainJet,
 } from './kit.js'
 
 // ---------------------------------------------------------------------------
@@ -131,6 +132,10 @@ function windowUnit(colour, shuttered, rng) {
   const sill = rbox(0.92, 0.09, 0.2, PAL.stone, 0.03)
   sill.position.y = -0.54
   g.add(sill)
+  // stone lintel above — reads clearly at facade-on angles
+  const lintel = rbox(0.9, 0.12, 0.16, PAL.stoneDark, 0.03)
+  lintel.position.y = 0.56
+  g.add(lintel)
   if (shuttered) {
     for (const s of [-1, 1]) {
       const sh = rbox(0.34, 1.0, 0.06, colour, 0.02)
@@ -155,9 +160,14 @@ function windowUnit(colour, shuttered, rng) {
 function building(w, d, rng, opts = {}) {
   const g = new THREE.Group()
   const floors = opts.floors ?? (1 + Math.floor(rng() * 2))
-  const h = 3.0 + floors * 1.6
+  // per-building height jitter so block rooflines aren't flat
+  const h = 3.0 + floors * 1.6 + (rng() - 0.5) * 0.7
   const plasters = [PAL.plaster, PAL.plasterWarm, PAL.plasterPink, PAL.plasterOchre]
-  const plaster = opts.colour ?? plasters[Math.floor(rng() * plasters.length)]
+  const basePlaster = opts.colour ?? plasters[Math.floor(rng() * plasters.length)]
+  // subtle per-building tint so big walls aren't a single flat colour
+  const plaster = new THREE.Color(basePlaster)
+    .offsetHSL((rng() - 0.5) * 0.015, (rng() - 0.5) * 0.06, (rng() - 0.5) * 0.045)
+    .getHex()
 
   const body = rbox(w * 0.97, h, d * 0.97, plaster, 0.12)
   body.position.y = h / 2
@@ -169,6 +179,14 @@ function building(w, d, rng, opts = {}) {
     rng() > 0.35 ? PAL.terracotta : (rng() > 0.5 ? PAL.terracottaDeep : PAL.terracottaLight))
   rf.position.y = h + 0.62
   g.add(rf)
+
+  // chimneys — visible against the sky at the low camera angle
+  const nChim = 1 + (rng() > 0.6 ? 1 : 0)
+  for (let i = 0; i < nChim; i++) {
+    const ch = chimney(rng)
+    ch.position.set((rng() - 0.5) * w * 0.5, h + 0.9 + rng() * 0.3, (rng() - 0.5) * d * 0.4)
+    g.add(ch)
+  }
 
   const shutterCols = [PAL.door, PAL.doorTeal, PAL.doorOlive, PAL.doorRed]
   const shutterCol = shutterCols[Math.floor(rng() * shutterCols.length)]
@@ -184,13 +202,27 @@ function building(w, d, rng, opts = {}) {
   const knob = sph(0.05, 0xd9b64a, 0)
   knob.position.set(doorX + 0.32, 1.05, front - 0.12)
   g.add(knob)
+  const step = doorstep(1.5)
+  step.position.set(doorX, 0, front - 0.32)
+  g.add(step)
+
+  // a drainpipe down one front corner
+  if (rng() > 0.3) {
+    const dp = drainpipe(h - 0.4)
+    const side = rng() > 0.5 ? 1 : -1
+    dp.position.set(side * (w * 0.44), 0, front - 0.06)
+    g.add(dp)
+  }
 
   const cols = Math.max(1, Math.floor(w / 2.3))
   for (let f = 0; f < floors; f++) {
     const wy = 2.6 + f * 1.6
+    // varied window rhythm: upper floors sometimes shift half a bay
+    const shift = f > 0 && rng() > 0.55 ? (w / cols) * 0.5 * (rng() > 0.5 ? 1 : -1) : 0
     for (let i = 0; i < cols; i++) {
       if (rng() < 0.15) continue
-      const wx = (i - (cols - 1) / 2) * (w / cols)
+      const wx = (i - (cols - 1) / 2) * (w / cols) + shift
+      if (Math.abs(wx) > w * 0.42) continue
       if (f === 0 && Math.abs(wx - doorX) < 1.2) continue
       const win = windowUnit(shutterCol, rng() > 0.35, rng)
       win.position.set(wx, wy, front + 0.02)
@@ -202,14 +234,20 @@ function building(w, d, rng, opts = {}) {
         g.add(pot)
       }
     }
+    // occasional hanging plant between window bays
+    if (rng() > 0.55) {
+      const hp = hangingPlant(rng)
+      hp.position.set((rng() - 0.5) * w * 0.6, wy + 0.45, front + 0.14)
+      g.add(hp)
+    }
   }
 
   if (opts.shop) {
     const aw = awning(Math.min(w * 0.7, 3.2), opts.awningColour ?? PAL.doorRed)
     aw.position.set(doorX, 2.75, front - 0.42)
     g.add(aw)
-    const sign = rbox(1.7, 0.42, 0.08, PAL.woodDark, 0.03)
-    sign.position.set(doorX, 3.45, front - 0.08)
+    const sign = signboard(opts.signText ?? 'dukaan', PAL.woodDark)
+    sign.position.set(doorX, 3.5, front - 0.1)
     g.add(sign)
   }
   return g
@@ -355,6 +393,28 @@ export function buildTown(scene) {
   foam.position.set(0, -0.28, tileToWorld(0, 25.9).z)
   scene.add(foam)
 
+  // --- horizon: hazy headland + hills beyond the sea -----------------------
+  // the low camera sees past the water; give it silhouettes instead of void
+  const hazeCols = [0x8fa8b8, 0x9db2bd, 0x7e9aab]
+  const hillMat = i => new THREE.MeshBasicMaterial({ color: hazeCols[i % hazeCols.length], fog: true })
+  const farZ = seaZ + 34
+  for (let i = 0; i < 6; i++) {
+    const hw = 26 + rng() * 30
+    const hh = 4.5 + rng() * 5
+    const hill = new THREE.Mesh(new THREE.ConeGeometry(hw * 0.5, hh, 7), hillMat(i))
+    hill.scale.y = 0.6 + rng() * 0.3
+    hill.position.set((i - 2.5) * 22 + (rng() - 0.5) * 10, -0.4, farZ + 4 + rng() * 10)
+    hill.castShadow = false
+    hill.receiveShadow = false
+    scene.add(hill)
+  }
+  // a long low headland reaching in from the east
+  const headland = new THREE.Mesh(new THREE.ConeGeometry(20, 3.2, 6), hillMat(2))
+  headland.scale.set(2.6, 0.7, 0.6)
+  headland.position.set(52, -0.4, seaZ + 20)
+  headland.castShadow = false
+  scene.add(headland)
+
   // --- tiles ---------------------------------------------------------------
   for (let z = 0; z < ROWS; z++) {
     for (let x = 0; x < COLS; x++) {
@@ -462,13 +522,16 @@ export function buildTown(scene) {
   const fp = tileToWorld(21.5, 12.5)
   f.position.set(fp.x, PLAZA_H, fp.z)
   scene.add(f)
+  const jet = fountainJet()
+  jet.position.set(fp.x, PLAZA_H + 2.6, fp.z)
+  scene.add(jet)
 
   // --- buildings -----------------------------------------------------------
   const used = grid.map(r => r.map(() => false))
   const shops = [
-    { at: [14, 4], colour: PAL.doorRed },      // panadería (north of plaza, west)
-    { at: [12, 14], colour: PAL.doorTeal },    // café west
-    { at: [32, 9], colour: 0xe8c56a },         // frutería east
+    { at: [14, 4], colour: PAL.doorRed, sign: 'roti ghar' },     // bakery (north of plaza, west)
+    { at: [12, 14], colour: PAL.doorTeal, sign: 'chai adda' },   // café west
+    { at: [32, 9], colour: 0xe8c56a, sign: 'phal wala' },        // fruit shop east
   ]
   for (let z = 0; z < ROWS; z++) {
     for (let x = 0; x < COLS; x++) {
@@ -486,7 +549,7 @@ export function buildTown(scene) {
       const isShop = shops.find(s => s.at[0] >= x && s.at[0] < x + w && s.at[1] >= z && s.at[1] < z + d)
       const b = isChurch
         ? church(w * TILE, d * TILE, rng)
-        : building(w * TILE, d * TILE, rng, { shop: !!isShop, awningColour: isShop?.colour })
+        : building(w * TILE, d * TILE, rng, { shop: !!isShop, awningColour: isShop?.colour, signText: isShop?.sign })
       const c0 = tileToWorld(x + w / 2 - 0.5, z + d / 2 - 0.5)
       b.position.set(c0.x, 0, c0.z)
       if (z + d / 2 > 19) b.rotation.y = Math.PI          // south row faces north
@@ -501,6 +564,11 @@ export function buildTown(scene) {
   const cp = tileToWorld(12.5, 12.5)
   cafe.position.set(cp.x, PLAZA_H, cp.z)
   scene.add(cafe)
+  for (const [ux, uz, uc] of [[-1.7, 0.4, 0xe8c56a], [1.6, -0.5, 0xd9694a]]) {
+    const um = cafeUmbrella(rng, uc)
+    um.position.set(cp.x + ux, PLAZA_H, cp.z + uz)
+    scene.add(um)
+  }
 
   // --- market stalls (frutería row, east of plaza) -------------------------
   const stallCols = [0xe8c56a, 0xd94f3d, 0x4a8fc9]
@@ -542,6 +610,19 @@ export function buildTown(scene) {
     l.position.set(lp.x, groundHeight(lx, lz), lp.z)
     l.rotation.y = rng() * Math.PI * 2
     scene.add(l)
+  }
+
+  // crates and barrels tucked against facades — street-level clutter
+  for (const [sx, sz, kind] of [
+    [9.5, 3, 'c'], [18.5, 2.5, 'b'], [27.5, 3.5, 'c'], [36.5, 2.5, 'b'],
+    [8.5, 8, 'b'], [14.5, 16, 'c'], [30.5, 17, 'b'], [36, 15, 'c'],
+    [9.5, 21, 'c'], [24.5, 20.5, 'b'], [33.5, 21, 'c'],
+  ]) {
+    const pr = kind === 'c' ? crate(rng) : barrel(rng)
+    const pp = tileToWorld(sx, sz)
+    pr.position.set(pp.x, groundHeight(Math.round(sx), Math.round(sz)), pp.z)
+    pr.rotation.y = rng() * Math.PI * 2
+    scene.add(pr)
   }
 
   // pots scattered near walls

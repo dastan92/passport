@@ -249,3 +249,52 @@ body {
 body.coach-open #convo { left: calc(50% - 10.5rem); }
 body.coach-open #talk-prompt { left: calc(50% - 10.5rem); }
 body.coach-open #toast { left: calc(50% - 10.5rem); }
+
+
+/* ------------------------------------------------------------- patience --- */
+#cv-patience {
+  --p: 70%;
+  width: 3.2rem; height: 0.45rem; border-radius: 999px;
+  background: rgba(247, 239, 224, 0.14);
+  position: relative; overflow: hidden; margin: 0 0.8rem;
+  flex-shrink: 0;
+}
+#cv-patience::after {
+  content: ''; position: absolute; inset: 0;
+  width: var(--p); border-radius: 999px;
+  background: linear-gradient(90deg, #d9694a, #e8b25c 60%, #9ab86a);
+  transition: width 0.4s ease;
+}
+#cv-patience.low::after { background: #d9694a; animation: pulse 1s infinite alternate; }
+@keyframes pulse { to { opacity: 0.55; } }
+
+.mc-facts {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.62rem; letter-spacing: 0.08em;
+  color: var(--accent); margin-top: 0.3rem;
+}
+
+/* ---------------------------------------------------------------- intro --- */
+#intro {
+  position: fixed; inset: 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(18, 12, 6, 0.78); backdrop-filter: blur(6px);
+}
+.intro-box {
+  background: var(--panel-solid); border: 1px solid var(--line);
+  border-radius: 16px; padding: 2rem 2.2rem;
+  width: min(34rem, calc(100% - 2rem)); color: var(--paper);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+  animation: introIn 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes introIn { from { opacity: 0; transform: translateY(18px); } }
+.intro-label {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.7rem; letter-spacing: 0.34em; color: var(--accent);
+  margin-bottom: 1rem;
+}
+.intro-box h2 { font-size: 1.55rem; margin-bottom: 0.2rem; }
+.intro-en { color: var(--muted); font-style: italic; margin-bottom: 1rem; }
+.intro-box p { font-size: 0.95rem; line-height: 1.6; margin-bottom: 0.8rem; color: rgba(247, 239, 224, 0.85); }
+.intro-box strong { color: var(--accent); }
+#intro-start { margin-top: 0.6rem; font-size: 0.8rem; padding: 0.55rem 1.3rem; }

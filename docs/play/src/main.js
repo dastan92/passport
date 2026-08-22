@@ -9,6 +9,7 @@ import { spawnAmbient, createSoundscape } from './ambient.js'
 import { ask, askCoach, getKey, setKey, forgetAll, learnerState } from './conversation.js'
 import { activeMission, missionFor, completeMission, missionState } from './missions.js'
 import * as tts from './tts.js'
+import { tryReveal, factsHeldBy, knownFacts, resetKnowledge } from './knowledge.js'
 
 // ---------------------------------------------------------------------------
 // renderer / scene — Alba register: bright coastal morning, saturated, soft
@@ -24,14 +25,14 @@ renderer.toneMappingExposure = 1.08
 
 const scene = new THREE.Scene()
 scene.background = new THREE.Color(0xaed4ea) // coastal sky
-scene.fog = new THREE.Fog(0xc4dcea, 55, 160)
+scene.fog = new THREE.Fog(0xc4dcea, 70, 220)
 
 // ---------------------------------------------------------------------------
 // camera — perspective, high three-quarter follow. Warmth needs perspective.
 // ---------------------------------------------------------------------------
-const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 400)
-const OFF_ROAM = new THREE.Vector3(0, 16.5, 14.5)
-const OFF_TALK = new THREE.Vector3(2.2, 4.6, 5.4)
+const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 500)
+const OFF_ROAM = new THREE.Vector3(0, 9.2, 11.0)   // low three-quarter: you are IN the town
+const OFF_TALK = new THREE.Vector3(1.6, 2.6, 4.0)  // near eye level for conversation
 const camOffset = OFF_ROAM.clone()
 const camLook = new THREE.Vector3()
 
@@ -152,6 +153,35 @@ const toast = el('toast')
 
 let talking = null
 let nearby = null
+
+// --- patience: every resident has a temper. Rudeness and spam drain it,
+// courtesy and completed missions restore it. Empty = they walk off.
+const patience = JSON.parse(localStorage.getItem('passport_patience') || '{}')
+const lastSaid = {}
+function getPatience(id) { return patience[id] ?? 70 }
+function setPatience(id, v) {
+  patience[id] = Math.max(0, Math.min(100, Math.round(v)))
+  localStorage.setItem('passport_patience', JSON.stringify(patience))
+  renderPatience()
+}
+function patienceDelta(id, text) {
+  let d = -1 // every message costs a sliver: their time is real
+  const t = text.toLowerCase().trim()
+  if (/namaste|dhanyavaad|shukriya|please|kripya|\bji\b|maaf/.test(t)) d += 5
+  if (t === (lastSaid[id] || '')) d -= 12          // repeating yourself verbatim
+  else if (t.split(/\s+/).length <= 1) d -= 6      // grunting
+  if (t.length > 0 && !/[a-z\u0900-\u097F]/i.test(t)) d -= 8  // keyboard mash
+  lastSaid[id] = t
+  return d
+}
+function renderPatience() {
+  const el2 = document.getElementById('cv-patience')
+  if (!el2 || !talking) return
+  const v = getPatience(talking.id)
+  el2.style.setProperty('--p', v + '%')
+  el2.classList.toggle('low', v < 30)
+  el2.title = 'patience: ' + v
+}
 let showTranslation = localStorage.getItem('passport_tr') === '1'
 
 function uiFocused() {
@@ -164,13 +194,15 @@ function uiFocused() {
 function refreshMission() {
   const m = activeMission()
   if (!m) {
-    missionCard.innerHTML = '<div class="mc-title">Pueblo es tuyo</div><div class="mc-en">Free roam — talk to anyone</div>'
+    missionCard.innerHTML = '<div class="mc-title">Pueblo tumhara hai</div><div class="mc-en">Passport mil gaya — free roam</div>'
     return
   }
+  const facts = knownFacts().length
   missionCard.innerHTML =
-    `<div class="mc-label">misión</div>` +
+    `<div class="mc-label">mission</div>` +
     `<div class="mc-title">${m.title}</div>` +
-    `<div class="mc-en">${m.titleEn}</div>`
+    `<div class="mc-en">${m.titleEn}</div>` +
+    (facts ? `<div class="mc-facts">gyaan: ${facts} baat pata hai</div>` : '')
 }
 refreshMission()
 
@@ -210,7 +242,9 @@ function openConvo(r) {
   if (showTranslation && r.openerEn) addLine(cvLog, '', r.openerEn, 'tr')
   panel.classList.remove('hidden')
   talkPrompt.classList.add('hidden')
-  cvStatus.textContent = getKey() ? '' : 'sin clave · respuestas limitadas'
+  cvStatus.textContent = getKey() ? '' : 'no API key · limited replies'
+  if (getPatience(r.id) < 20) setPatience(r.id, 20) // time cools tempers a little
+  renderPatience()
   tts.speak(r.opener, r.id)
   setTimeout(() => cvInput.focus(), 60)
   r.group.userData.turnTo = player.position.clone()
@@ -230,11 +264,26 @@ async function send() {
   cvInput.value = ''
   addLine(cvLog, 'tú', text, 'me')
   const pending = addLine(cvLog, '', '···', 'them pending')
-  cvStatus.textContent = 'pensando…'
+  cvStatus.textContent = 'soch rahe…'
   const r = talking
   const m = missionFor(r.id)
+  // patience first: if they are out, the conversation is over
+  setPatience(r.id, getPatience(r.id) + patienceDelta(r.id, text))
+  if (getPatience(r.id) <= 0) {
+    pending.remove()
+    const line = addLine(cvLog, '', 'Bas, mera time ho gaya. Baad mein aana.', 'them')
+    tts.speak('Bas, mera time ho gaya. Baad mein aana.', r.id)
+    cvStatus.textContent = 'unka patience khatam — thodi der baad aana'
+    setTimeout(closeConvo, 2600)
+    return
+  }
+  const held = factsHeldBy(r.id)
+  const extra = {
+    mood: `\nYOUR PATIENCE with this foreigner right now: ${getPatience(r.id)}/100. Above 70: warm and generous. 40-70: normal. Below 40: clipped, busy, mildly annoyed. Below 20: one-line answers, about to walk off.\n`,
+    knowledge: held.hidden.length || held.known.length ? `\nTHINGS YOU KNOW${held.known.length ? ' (already told them: ' + held.known.map(f => f.text).join(' | ') + ')' : ''}${held.hidden.length ? '. NOT yet told them — reveal ONLY if they ask about the relevant topic, never volunteer it unprompted: ' + held.hidden.map(f => f.text).join(' | ') : ''}\n` : '',
+  }
   try {
-    const { reply, source } = await ask(r, text, m)
+    const { reply, source } = await ask(r, text, m, extra)
     if (talking !== r) return
     pending.remove()
     const line = addLine(cvLog, '', reply, 'them')
@@ -243,16 +292,25 @@ async function send() {
     line.style.cursor = 'pointer'
     line.addEventListener('click', () => tts.speak(reply, r.id))
     if (source.startsWith('error:')) cvStatus.textContent = 'API: ' + source.slice(6, 90)
-    else if (source === 'scripted') cvStatus.textContent = 'sin clave · respuestas limitadas'
+    else if (source === 'scripted') cvStatus.textContent = 'no API key · limited replies'
     else {
       const st = learnerState()
-      cvStatus.textContent = `${st.level} · ${st.words.length} palabras`
+      cvStatus.textContent = `${st.level} · ${st.words.length} shabd`
+    }
+    // knowledge: did this question unlock a fact?
+    const fact = tryReveal(r.id, text)
+    if (fact) {
+      showToast('naya pata chala', fact.textEn)
+      setPatience(r.id, getPatience(r.id) + 4)
+      if (fact.coachNote) coachSay(fact.coachNote, false)
+      refreshMission()
     }
     // mission completion
     if (m && m.check(text)) {
       const done = completeMission(m.id)
       if (done) {
-        showToast(`✓ ${done.title}`, done.reward?.item ? `conseguiste: ${done.reward.item}` : '')
+        setPatience(r.id, getPatience(r.id) + 15)
+        showToast(`✓ ${done.title}`, done.reward?.item ? `mila: ${done.reward.item}` : '')
         refreshMission()
         coachSay(`Nice — "${done.titleEn}" done. ` + (activeMission()
           ? `Next up: ${activeMission().titleEn}. ${activeMission().brief}`
@@ -322,13 +380,21 @@ coachInput.addEventListener('keydown', e => {
   if (e.key === 'Escape') toggleCoach(false)
 })
 
-// first-run coach welcome
+// first-run: arrival sequence
+const introEl = document.getElementById('intro')
 if (!localStorage.getItem('passport_welcomed')) {
-  localStorage.setItem('passport_welcomed', '1')
-  setTimeout(() => {
-    toggleCoach(true)
-    coachSay("Welcome to Pueblo. I'm Marco — the only English speaker in town, so make me count. First mission: Pilar's fruit stall, east side of the plaza. Buy three bananas. In Spanish. Say \"quiero tres plátanos, por favor\" and you're golden. I'm in this pane whenever you need me — press C.")
-  }, 1200)
+  introEl.classList.remove('hidden')
+  document.getElementById('intro-start').addEventListener('click', () => {
+    localStorage.setItem('passport_welcomed', '1')
+    introEl.classList.add('hidden')
+    sound.start()
+    setTimeout(() => {
+      toggleCoach(true)
+      coachSay("There you are! Rough landing, huh — the bus company says your bag is 'somewhere'. Breathe. I'm Marco, the only person in this town who speaks English, so use me well: press C anytime, this pane is me. Rule one of being stranded: eat. Pilar's fruit stall, east side of the plaza — buy three bananas. In Hindi. Say: mujhe teen kele chahiye. Go.")
+    }, 700)
+  })
+} else {
+  introEl.classList.add('hidden')
 }
 
 // ---------------------------------------------------------------------------
@@ -345,7 +411,7 @@ el('key-save').addEventListener('click', () => {
   el('key-open').textContent = getKey() ? 'clave ✓' : 'clave'
 })
 el('key-cancel').addEventListener('click', () => keyPanel.classList.add('hidden'))
-el('key-forget').addEventListener('click', forgetAll)
+el('key-forget').addEventListener('click', () => { resetKnowledge(); forgetAll() })
 el('key-open').textContent = getKey() ? 'clave ✓' : 'clave'
 el('mute').addEventListener('click', () => {
   el('mute').textContent = sound.toggleMute() ? 'sonido ✕' : 'sonido ✓'
@@ -454,7 +520,7 @@ function step(dt) {
     }
     if (nearby) {
       const m = missionFor(nearby.id)
-      talkPrompt.innerHTML = `<kbd>E</kbd> hablar con ${nearby.name}` + (m ? ' ★' : '')
+      talkPrompt.innerHTML = `<kbd>E</kbd> ${nearby.name} se baat karo` + (m ? ' ★' : '')
       talkPrompt.classList.remove('hidden')
     } else {
       talkPrompt.classList.add('hidden')

@@ -1,0 +1,11 @@
+{
+  "_comment": "Optional per-resident Fish Audio voice ids from fish.audio's voice catalog. Residents missing here use FISH_VOICE_ID from .env, or Fish's default voice. Pick Spanish voices for everyone except coach.",
+  "coach": "",
+  "rosa": "",
+  "pilar": "",
+  "tomas": "",
+  "carmen": "",
+  "miguel": "",
+  "lucia": "",
+  "padre": ""
+}

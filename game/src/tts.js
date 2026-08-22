@@ -19,13 +19,11 @@ if (window.speechSynthesis) {
   window.speechSynthesis.onvoiceschanged = loadVoices
 }
 
-// Pick the best available Spanish voice, preferring Spain over Latin America
-// for this campaign, and preferring a non-default (usually higher quality) one.
-function spanishVoices() {
+// Best available Hindi voices. Text is romanized Hindi; hi-IN voices read it
+// far better than en-* voices do.
+function spanishVoices() { // legacy name: "target-language voices"
   if (!ready) loadVoices()
-  const es = voices.filter(v => /^es(-|_)?/i.test(v.lang))
-  const spain = es.filter(v => /es[-_]ES/i.test(v.lang))
-  return spain.length ? spain : es
+  return voices.filter(v => /^hi(-|_)?/i.test(v.lang))
 }
 
 export function voiceReport() {
@@ -33,7 +31,7 @@ export function voiceReport() {
   return {
     supported: !!window.speechSynthesis,
     total: voices.length,
-    spanish: spanishVoices().map(v => `${v.name} (${v.lang})`),
+    hindi: spanishVoices().map(v => `${v.name} (${v.lang})`),
   }
 }
 
@@ -49,11 +47,59 @@ const CHARACTER = {
   coach:  { pitch: 1.0,  rate: 1.0,  pick: 2, lang: 'en-GB' },
 }
 
+// --- Fish Audio via the dev server's /tts proxy ------------------------------
+// Probed once at startup; when absent (GitHub Pages, no key) we use browser
+// voices. Same graceful-degradation shape as dota-coach.
+let fishAvailable = null
+async function probeFish() {
+  if (fishAvailable !== null) return fishAvailable
+  try {
+    const res = await fetch('/tts/status')
+    fishAvailable = res.ok && (await res.json()).fish === true
+  } catch { fishAvailable = false }
+  return fishAvailable
+}
+probeFish()
+
+let currentAudio = null
+async function speakFish(text, residentId, onDone) {
+  try {
+    const res = await fetch('/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, resident: residentId }),
+    })
+    if (!res.ok) return false
+    const blob = await res.blob()
+    if (currentAudio) { currentAudio.pause(); currentAudio = null }
+    const audio = new Audio(URL.createObjectURL(blob))
+    currentAudio = audio
+    audio.onended = () => {
+      URL.revokeObjectURL(audio.src)
+      if (currentAudio === audio) currentAudio = null
+      onDone && onDone()
+    }
+    await audio.play()
+    return true
+  } catch { return false }
+}
+
 let current = null
 
 export function speak(text, residentId, onDone) {
-  if (!enabled || !window.speechSynthesis || !text) { onDone && onDone(); return null }
+  if (!enabled || !text) { onDone && onDone(); return null }
   stop()
+  if (fishAvailable) {
+    speakFish(text, residentId, onDone).then(ok => {
+      if (!ok) speakBrowser(text, residentId, onDone)
+    })
+    return null
+  }
+  return speakBrowser(text, residentId, onDone)
+}
+
+function speakBrowser(text, residentId, onDone) {
+  if (!window.speechSynthesis) { onDone && onDone(); return null }
   const ch = CHARACTER[residentId] || { pitch: 1, rate: 1, pick: 0 }
   const u = new SpeechSynthesisUtterance(text)
 
@@ -64,7 +110,7 @@ export function speak(text, residentId, onDone) {
   } else {
     const es = spanishVoices()
     if (es.length) u.voice = es[ch.pick % es.length]
-    u.lang = u.voice ? u.voice.lang : 'es-ES'
+    u.lang = u.voice ? u.voice.lang : 'hi-IN'
   }
   u.pitch = ch.pitch
   u.rate = ch.rate
@@ -80,12 +126,16 @@ export function stop() {
   if (window.speechSynthesis && window.speechSynthesis.speaking) {
     window.speechSynthesis.cancel()
   }
+  if (currentAudio) { currentAudio.pause(); currentAudio = null }
   current = null
 }
 
 export function isSpeaking() {
-  return !!(window.speechSynthesis && window.speechSynthesis.speaking)
+  return !!(currentAudio && !currentAudio.paused) ||
+    !!(window.speechSynthesis && window.speechSynthesis.speaking)
 }
+
+export function usingFish() { return fishAvailable === true }
 
 export function toggle() {
   enabled = !enabled

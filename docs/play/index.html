@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -34,6 +34,7 @@
           <div id="cv-name"></div>
           <div id="cv-role"></div>
         </div>
+        <div id="cv-patience" title="patience"></div>
         <div id="cv-actions">
           <button id="cv-translate" class="chip" title="mostrar traducción">EN</button>
           <button id="cv-close" class="chip">✕</button>
@@ -42,8 +43,8 @@
       <div id="cv-log"></div>
       <div id="cv-foot">
         <input id="cv-input" type="text" autocomplete="off" spellcheck="false"
-               placeholder="escribe en español…" />
-        <button id="cv-send" class="chip primary">enviar</button>
+               placeholder="hindi mein likho… (roman script)" />
+        <button id="cv-send" class="chip primary">bhejo</button>
       </div>
       <div id="cv-status"></div>
     </div>
@@ -52,7 +53,7 @@
       <div id="coach-head">
         <div>
           <div id="coach-name">Marco</div>
-          <div id="coach-sub">tu coach · habla inglés</div>
+          <div id="coach-sub">your coach · speaks English</div>
         </div>
         <button id="coach-close" class="chip">✕</button>
       </div>
@@ -80,7 +81,19 @@
       </div>
     </div>
 
-    <div id="controls-hint">WASD moverse · E hablar · C coach · Esc salir</div>
+    <div id="intro" class="hidden">
+      <div class="intro-box">
+        <div class="intro-label">PASSPORT</div>
+        <h2>Tum abhi Pueblo pahunche ho.</h2>
+        <p class="intro-en">You've just arrived in Pueblo.</p>
+        <p>The overnight bus dropped you at the edge of town and drove off — <strong>with your bag still in the hold</strong>. In the bag: your clothes, your phone charger, and your <strong>passport</strong>.</p>
+        <p>What you have: a little cash, the address of a coach named <strong>Marco</strong>, and the Hindi you can piece together.</p>
+        <p>Nobody else here speaks English. Welcome home, for now.</p>
+        <button id="intro-start" class="chip primary">shuru karo — begin</button>
+      </div>
+    </div>
+
+    <div id="controls-hint">WASD move · E talk · C coach · Esc exit</div>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>
