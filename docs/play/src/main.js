@@ -5,6 +5,7 @@ import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
 import { PLAYER_SPAWN } from './worldspec.js'
+import { currentLang, langMeta, tr } from './lang.js'
 import { listCharacters, activeCharacter, createCharacter, switchCharacter,
          deleteCharacter, exportCharacter, importCharacter, saveActive,
          migrateLegacySave } from './profiles.js'
@@ -22,6 +23,70 @@ import { LEVELS } from './levelspec.js'
 import { DISTRICTS, CAST, castTile } from './worldspec.js'
 import { barrel, signboard, seeded, mat } from './kit.js'
 // ============================================================================
+
+// ---------------------------------------------------------------------------
+// UI chrome strings, per learning language. Authored content lives in the
+// content files as {hi, es} objects resolved by tr(); these are the pieces of
+// chrome main.js itself writes into the DOM. Resolved live via T() so a
+// character switch (which reloads anyway) can never show the wrong language.
+// ---------------------------------------------------------------------------
+const UI_STRINGS = {
+  hi: {
+    youLabel: 'tum',
+    talkVerb: 'se baat karo',                       // "<kbd>E</kbd> Pilar se baat karo"
+    talkFmt: (name) => `${name} se baat karo`,
+    inputPlaceholder: 'hindi mein likho… (roman script)',
+    newFact: 'naya pata chala',
+    barrier: 'Abhi udhar nahi — pehle yahan ka kaam khatam karo',
+    freeRoam: '<div class="mc-title">Pueblo tumhara hai</div><div class="mc-en">Passport mil gaya — free roam</div>',
+    facts: (n) => `gyaan: ${n} baat pata hai`,
+    thinking: 'soch rahe…',
+    patienceOut: 'unka patience khatam — thodi der baad aana',
+    walkOff: 'Bas, mera time ho gaya. Baad mein aana.',
+    noReply: 'koi jawab nahi aaya — phir se bolo',
+    words: 'shabd',
+    people: 'log',
+    busGo: (dist) => `bus chal padi — ${dist} ki taraf…`,
+    nextStop: 'agla stop: ',
+    busRide: ' — bus se jao',
+    lockedStop: 'abhi band hai',
+    levelDone: 'POORA',
+    nextLevel: 'agla level: ',
+    townYours: 'Pueblo tumhara hai',
+    notPassport: 'Yeh passport file nahi hai.',
+    introHead: 'Tum abhi Pueblo pahunche ho.',
+    introLangBit: 'the Hindi you can piece together',
+    introStart: 'shuru karo — begin',
+  },
+  es: {
+    youLabel: 'tú',
+    talkVerb: 'habla con',                          // "<kbd>E</kbd> habla con Pilar"
+    talkFmt: (name) => `habla con ${name}`,
+    inputPlaceholder: 'escribe en español…',
+    newFact: 'algo nuevo',
+    barrier: 'Todavía no — termina lo de aquí primero',
+    freeRoam: '<div class="mc-title">Pueblo es tuyo</div><div class="mc-en">Passport recovered — free roam</div>',
+    facts: (n) => `sabes: ${n} cosa${n === 1 ? '' : 's'}`,
+    thinking: 'pensando…',
+    patienceOut: 'se le acabó la paciencia — vuelve en un rato',
+    walkOff: 'Bueno, se me acabó el tiempo. Vuelve luego.',
+    noReply: 'no hubo respuesta — dilo otra vez',
+    words: 'palabras',
+    people: 'personas',
+    busGo: (dist) => `¡el bus ya sale! — hacia ${dist}…`,
+    nextStop: 'próxima parada: ',
+    busRide: ' — ve en bus',
+    lockedStop: 'todavía cerrado',
+    levelDone: 'COMPLETO',
+    nextLevel: 'siguiente nivel: ',
+    townYours: 'Pueblo es tuyo',
+    notPassport: 'Esto no es un archivo de passport.',
+    introHead: 'Acabas de llegar a Pueblo.',
+    introLangBit: 'the Spanish you can piece together',
+    introStart: 'empieza — begin',
+  },
+}
+function T() { return UI_STRINGS[currentLang()] || UI_STRINGS.hi }
 
 // ---------------------------------------------------------------------------
 // renderer / scene — Alba register: bright coastal morning, saturated, soft
@@ -185,7 +250,7 @@ function gatedWalkable(cx, cz) {
     const now = performance.now()
     if (now - levelBump.last > 3500) {
       levelBump.last = now
-      showToast('Abhi udhar nahi — pehle yahan ka kaam khatam karo', 'finish this level’s errands first')
+      showToast(T().barrier, 'finish this level’s errands first')
     }
   }
   return false
@@ -298,7 +363,7 @@ function setPatience(id, v) {
 function patienceDelta(id, text) {
   let d = -1 // every message costs a sliver: their time is real
   const t = text.toLowerCase().trim()
-  if (/namaste|dhanyavaad|shukriya|please|kripya|\bji\b|maaf/.test(t)) d += 5
+  if (/namaste|dhanyavaad|shukriya|please|kripya|\bji\b|maaf|\bhola\b|por favor|\bgracias\b|\bperdona?\b|disculp/.test(t)) d += 5
   if (t === (lastSaid[id] || '')) d -= 12          // repeating yourself verbatim
   else if (t.split(/\s+/).length <= 1) d -= 6      // grunting
   if (t.length > 0 && !/[a-z\u0900-\u097F]/i.test(t)) d -= 8  // keyboard mash
@@ -328,15 +393,15 @@ function uiFocused() {
 function refreshMission() {
   const m = gActiveMission()   // LEVEL LAYER: never point at a locked-level errand
   if (!m) {
-    missionCard.innerHTML = '<div class="mc-title">Pueblo tumhara hai</div><div class="mc-en">Passport mil gaya — free roam</div>'
+    missionCard.innerHTML = T().freeRoam
     return
   }
   const facts = knownFacts().length
   missionCard.innerHTML =
     `<div class="mc-label">mission</div>` +
-    `<div class="mc-title">${m.title}</div>` +
+    `<div class="mc-title">${tr(m.title)}</div>` +
     `<div class="mc-en">${m.titleEn}</div>` +
-    (facts ? `<div class="mc-facts">gyaan: ${facts} baat pata hai</div>` : '')
+    (facts ? `<div class="mc-facts">${T().facts(facts)}</div>` : '')
 }
 refreshMission()
 refreshProgress()
@@ -351,10 +416,10 @@ function stampPassport(done, resident) {
   el2.innerHTML =
     `<div class="stamp-ring">` +
       `<div class="stamp-mark">${done.reward?.item ? '✦' : '✓'}</div>` +
-      `<div class="stamp-title">${done.title}</div>` +
+      `<div class="stamp-title">${tr(done.title)}</div>` +
       `<div class="stamp-en">${done.titleEn}</div>` +
-      (done.reward?.item ? `<div class="stamp-item">${done.reward.item}</div>` : '') +
-      `<div class="stamp-meta">${missionState().done.length} stamps · ${st.words.length} shabd · ${metPeople()} log</div>` +
+      (done.reward?.item ? `<div class="stamp-item">${tr(done.reward.item)}</div>` : '') +
+      `<div class="stamp-meta">${missionState().done.length} stamps · ${st.words.length} ${T().words} · ${metPeople()} ${T().people}</div>` +
     `</div>`
   el2.classList.remove('hidden', 'go')
   void el2.offsetWidth
@@ -375,8 +440,8 @@ function refreshProgress() {
   const st = learnerState()
   el2.innerHTML =
     `<span title="errands stamped">✦ ${missionState().done.length}</span>` +
-    `<span title="Hindi words you have produced">${st.words.length} shabd</span>` +
-    `<span title="residents you have spoken to">${metPeople()}/${RESIDENTS.length} log</span>`
+    `<span title="${langMeta().name} words you have produced">${st.words.length} ${T().words}</span>` +
+    `<span title="residents you have spoken to">${metPeople()}/${RESIDENTS.length} ${T().people}</span>`
 }
 
 // a short major arpeggio — the sound of a rubber stamp landing well
@@ -431,12 +496,12 @@ function addLine(log, who, text, cls) {
 function openConvo(r) {
   talking = r
   cvName.textContent = r.name
-  cvRole.textContent = r.role
+  cvRole.textContent = tr(r.role)
   cvLog.innerHTML = ''
   // Authored line on first meeting; after that they greet you from memory.
   // Shown immediately either way, then quietly replaced when the real one
   // lands, so the panel is never sitting empty waiting on the network.
-  const first = addLine(cvLog, '', r.opener, 'them')
+  const first = addLine(cvLog, '', tr(r.opener), 'them')
   if (showTranslation && r.openerEn) addLine(cvLog, '', r.openerEn, 'tr')
   markSeen(r.id)
   // The authored line is a placeholder so the panel is never empty; the spoken
@@ -448,7 +513,7 @@ function openConvo(r) {
       first.querySelector('.cv-text').textContent = line
       tts.speak(line, r.id)
     } else if (!spokeOpener) {
-      tts.speak(r.opener, r.id)   // generation failed — fall back to the script
+      tts.speak(tr(r.opener), r.id)   // generation failed — fall back to the script
     }
     spokeOpener = true
   })
@@ -496,9 +561,9 @@ async function send() {
 
 async function _send(text) {
   cvInput.value = ''
-  addLine(cvLog, 'tú', text, 'me')
+  addLine(cvLog, T().youLabel, text, 'me')
   const pending = addLine(cvLog, '', '···', 'them pending')
-  cvStatus.textContent = 'soch rahe…'
+  cvStatus.textContent = T().thinking
   const r = talking
   // Marco is the coach: he knows what you are supposed to be doing even
   // though he is never the errand's target. Without this he was handed a
@@ -508,9 +573,9 @@ async function _send(text) {
   setPatience(r.id, getPatience(r.id) + patienceDelta(r.id, text))
   if (getPatience(r.id) <= 0) {
     pending.remove()
-    const line = addLine(cvLog, '', 'Bas, mera time ho gaya. Baad mein aana.', 'them')
-    tts.speak('Bas, mera time ho gaya. Baad mein aana.', r.id)
-    cvStatus.textContent = 'unka patience khatam — thodi der baad aana'
+    const line = addLine(cvLog, '', T().walkOff, 'them')
+    tts.speak(T().walkOff, r.id)
+    cvStatus.textContent = T().patienceOut
     setTimeout(closeConvo, 2600)
     return
   }
@@ -528,7 +593,10 @@ async function _send(text) {
       ask(r, text, m, extra),
       m ? judgeMission(r, m, text) : Promise.resolve(null),
     ])
-    const { reply, source } = replyRes
+    // scriptedReply (offline fallback) can hand back a raw {hi, es} bank line;
+    // tr() resolves it and is a no-op on the normal string replies.
+    const { source } = replyRes
+    const reply = tr(replyRes.reply)
     // The player may have walked off or hit Escape while the model was
     // thinking. The REPLY is lost to them, but what they SAID still happened:
     // the resident remembered it, so facts must still reveal and errands must
@@ -546,7 +614,7 @@ async function _send(text) {
     }
     pending.remove()
     if (!reply || !reply.trim()) {
-      cvStatus.textContent = source === 'busy' ? '' : 'koi jawab nahi aaya — phir se bolo'
+      cvStatus.textContent = source === 'busy' ? '' : T().noReply
       return
     }
     const line = addLine(cvLog, '', reply, 'them')
@@ -558,12 +626,12 @@ async function _send(text) {
     else if (source === 'scripted') cvStatus.textContent = 'no API key · limited replies'
     else {
       const st = learnerState()
-      cvStatus.textContent = `${st.level} · ${st.words.length} shabd`
+      cvStatus.textContent = `${st.level} · ${st.words.length} ${T().words}`
     }
     // knowledge: did this question unlock a fact?
     const fact = tryReveal(r.id, text)
     if (fact) {
-      showToast('naya pata chala', fact.textEn)
+      showToast(T().newFact, fact.textEn)
       setPatience(r.id, getPatience(r.id) + 4)
       if (fact.coachNote) coachSay(fact.coachNote, false)
       refreshMission()
@@ -572,7 +640,14 @@ async function _send(text) {
     // model is available: a keyword list cannot tell "mujhe teen kele chahiye"
     // (buying) from "kya teen kele mehnge hain?" (asking the price), and it
     // wrongly passed the second. The regex is the offline fallback only.
-    const achieved = verdict === null ? regexHit : verdict
+    // Offline guard: the combined bilingual check() regex would let a Hindi
+    // sentence complete a Spanish character's errand (and vice versa). The
+    // resident does not speak the other language, so offline completion also
+    // requires the text to look like the character's own language.
+    const OWN = currentLang() === 'es'
+      ? /\b(quiero|quisiera|dame|deme|me pones?|por favor|hola|tres|pl[aá]tano|caf[eé]|pan)(?!\w)/i
+      : /\b(chahiye|mujhe|namaste|dijiye|dena|teen|kele|chai|roti)(?!\w)/i
+    const achieved = verdict === null ? (regexHit && OWN.test(text)) : verdict
     if (m && achieved) {
       const done = completeMission(m.id)
       if (done) {
@@ -652,7 +727,7 @@ async function sendCoach() {
   const text = coachInput.value.trim()
   if (!text) return
   coachInput.value = ''
-  addLine(coachLog, 'tú', text, 'me')
+  addLine(coachLog, T().youLabel, text, 'me')
   const pending = addLine(coachLog, '', '···', 'them pending')
   try {
     const { reply } = await askCoach(text, gActiveMission(), missionState())
@@ -693,7 +768,7 @@ function renderTitle() {
     card.className = 'char-card'
     const sm = c.summary || {}
     card.innerHTML =
-      `<div><div class="char-name">${c.name}</div>` +
+      `<div><div class="char-name">${c.name}<span class="char-lang">${(c.lang || 'hi').toUpperCase()}</span></div>` +
       `<div class="char-meta">level ${sm.level || 1} · ✦ ${sm.stamps || 0} · ${sm.words || 0} shabd · ${fmtAgo(c.lastPlayed)}</div></div>`
     const actions = document.createElement('div')
     actions.className = 'char-actions'
@@ -733,10 +808,15 @@ document.getElementById('chars').addEventListener('click', () => {
   renderTitle()
 })
 
+let pickedLang = 'hi'
+document.querySelectorAll('.lang-pick').forEach(b => b.addEventListener('click', () => {
+  pickedLang = b.dataset.lang
+  document.querySelectorAll('.lang-pick').forEach(x => x.classList.toggle('on', x === b))
+}))
 document.getElementById('title-create').addEventListener('click', () => {
   const name = document.getElementById('title-name').value.trim()
   if (!name) { document.getElementById('title-name').focus(); return }
-  createCharacter(name)
+  createCharacter(name, pickedLang)
   location.reload()
 })
 document.getElementById('title-name').addEventListener('keydown', e => {
@@ -749,12 +829,34 @@ document.getElementById('title-import-file').addEventListener('change', async e 
   if (!f) return
   const id = importCharacter(await f.text())
   if (id) renderTitle()
-  else alert('Yeh passport file nahi hai.')
+  else alert(T().notPassport)
 })
 
 // autosave the active character: every 20s and on the way out the door
 setInterval(saveActive, 20000)
 window.addEventListener('beforeunload', saveActive)
+
+// language-dependent chrome that lives in index.html: the static markup is the
+// Hindi original, so repaint it from the UI table once a character (and thus a
+// language) is active. Called at boot and again after a character switch that
+// does not reload (belt and braces — switching currently reloads).
+function applyChromeLang() {
+  const rl = document.getElementById('route-label')
+  if (rl) rl.textContent = currentLang() === 'es' ? 'RUTA DEL BUS — el bus de Rafa' : 'BUS ROUTE — Rafa ki gaadi'
+  const mh = document.getElementById('map-hint')
+  if (mh) mh.textContent = currentLang() === 'es'
+    ? 'M / Esc — cerrar · 🔒 aún cerrado · ★ tu recado · ● tú'
+    : 'M / Esc — band karo · 🔒 abhi band hai · ★ abhi ka kaam · ● tum'
+  // route-label-i18n marker
+  cvInput.placeholder = T().inputPlaceholder
+  const h = document.getElementById('intro-head')
+  if (h) h.textContent = T().introHead
+  const lb = document.getElementById('intro-langbit')
+  if (lb) lb.textContent = T().introLangBit
+  const st = document.getElementById('intro-start')
+  if (st) st.textContent = T().introStart
+}
+applyChromeLang()
 
 const introEl = document.getElementById('intro')
 if (!activeCharacter()) {
@@ -770,7 +872,9 @@ if (!activeCharacter()) {
     sound.start()
     setTimeout(() => {
       toggleCoach(true)
-      coachSay("There you are! Rough landing, huh — the bus company says your bag is 'somewhere'. Breathe. I'm Marco, the only person in this town who speaks English, so use me well: press C anytime, this pane is me. Rule one of being stranded: eat. Pilar's fruit stall, east side of the plaza — buy three bananas. In Hindi. Say: mujhe teen kele chahiye. Go.")
+      coachSay(currentLang() === 'es'
+      ? "There you are! Rough landing, huh — the bus company says your bag is 'somewhere'. Breathe. I'm Marco, the only English speaker in town, so use me well: press C anytime, this pane is me. Rule one of being stranded: eat. Pilar's fruit stall, east side — buy three bananas. In Spanish. Say: quiero tres plátanos, por favor. Go."
+      : "There you are! Rough landing, huh — the bus company says your bag is 'somewhere'. Breathe. I'm Marco, the only English speaker in town, so use me well: press C anytime, this pane is me. Rule one of being stranded: eat. Pilar's fruit stall, east side — buy three bananas. In Hindi. Say: mujhe teen kele chahiye. Go.")
     }, 700)
   })
 } else {
@@ -884,7 +988,7 @@ function step(dt) {
     }
     if (nearby) {
       const m = gMissionFor(nearby.id)   // LEVEL LAYER gating
-      talkPrompt.innerHTML = `<kbd>E</kbd> ${nearby.name} se baat karo` + (m ? ' ★' : '')
+      talkPrompt.innerHTML = `<kbd>E</kbd> ${T().talkFmt(nearby.name)}` + (m ? ' ★' : '')
       talkPrompt.classList.remove('hidden')
     } else {
       talkPrompt.classList.add('hidden')
@@ -987,7 +1091,7 @@ const mapSub = el('map-sub')
 
 function renderMap(justUnlocked) {
   const lv = currentLevel()
-  mapSub.textContent = `level ${lv.number} · ${lv.name} — ${lv.nameEn}`
+  mapSub.textContent = `level ${lv.number} · ${tr(lv.name)} — ${lv.nameEn}`
   mapGrid.innerHTML = ''
   const px = 100 / COLS, pz = 100 / ROWS
   for (const [key, d] of Object.entries(DISTRICTS)) {
@@ -1047,8 +1151,8 @@ function renderMap(justUnlocked) {
       (i === lv.index ? ' current' : '') + (open ? '' : ' locked')
     const p = levelProgress(i)
     b.innerHTML = '<div class="rs-dot">' + (isLevelComplete(i) ? '✦' : (open ? (i + 1) : '🔒')) + '</div>' +
-      '<div class="rs-name">' + l.name + (open && p.total ? '<br>' + p.done + '/' + p.total : '') + '</div>'
-    b.title = open ? (l.nameEn + ' — bus se jao') : 'abhi band hai'
+      '<div class="rs-name">' + tr(l.name) + (open && p.total ? '<br>' + p.done + '/' + p.total : '') + '</div>'
+    b.title = open ? (l.nameEn + T().busRide) : T().lockedStop
     if (open) b.addEventListener('click', () => rideBusTo(i))
     strip.appendChild(b)
   })
@@ -1067,7 +1171,7 @@ function rideBusTo(levelIndex) {
   const stop = BUS_STOPS[l.district] || BUS_STOPS.plaza
   closeMap()
   const ride = el('bus-ride')
-  el('bus-text').textContent = 'bus chal padi — ' + (DISTRICTS[l.district]?.name || 'Pueblo') + ' ki taraf…'
+  el('bus-text').textContent = T().busGo(DISTRICTS[l.district]?.name || 'Pueblo')
   ride.classList.remove('hidden')
   sound.duck(true)
   setTimeout(() => {
@@ -1082,7 +1186,7 @@ function rideBusTo(levelIndex) {
     pos.x = bx; pos.z = bz
     ride.classList.add('hidden')
     sound.duck(false)
-    showToast('agla stop: ' + (DISTRICTS[l.district]?.name || 'Pueblo'), l.name)
+    showToast(T().nextStop + (DISTRICTS[l.district]?.name || 'Pueblo'), tr(l.name))
   }, 1400)
 }
 
@@ -1163,12 +1267,12 @@ function levelCeremony(res) {
   el2.innerHTML =
     `<div class="stamp-ring level">` +
       `<div class="stamp-mark">★</div>` +
-      `<div class="stamp-label">LEVEL ${lv.number} POORA</div>` +
-      `<div class="stamp-title">${lv.name}</div>` +
+      `<div class="stamp-label">LEVEL ${lv.number} ${T().levelDone}</div>` +
+      `<div class="stamp-title">${tr(lv.name)}</div>` +
       `<div class="stamp-en">${lv.nameEn}</div>` +
       (nx
-        ? `<div class="stamp-item">agla level: ${nx.name} — ${nx.nameEn}</div>`
-        : `<div class="stamp-item">Pueblo tumhara hai</div>`) +
+        ? `<div class="stamp-item">${T().nextLevel}${nx.name} — ${nx.nameEn}</div>`
+        : `<div class="stamp-item">${T().townYours}</div>`) +
     `</div>`
   el2.classList.remove('hidden', 'go')
   void el2.offsetWidth
@@ -1180,7 +1284,7 @@ function levelCeremony(res) {
   lastUnlocked = res.newDistricts || null
   setTimeout(() => {
     coachSay(nx
-      ? `Level ${lv.number} — "${lv.nameEn}" — done, stamped, celebrated. Level ${nx.number} is yours now: ${nx.name} (${nx.nameEn}). ${opened.length ? opened.join(', ') + ' just opened — the barrels are gone, go look. ' : 'Same streets, deeper water. '}${nx.blurb}`
+      ? `Level ${lv.number} — "${lv.nameEn}" — done, stamped, celebrated. Level ${nx.number} is yours now: ${tr(nx.name)} (${nx.nameEn}). ${opened.length ? opened.join(', ') + ' just opened — the barrels are gone, go look. ' : 'Same streets, deeper water. '}${nx.blurb}`
       : `That was the last level. The whole town is open, and it knows your name. Go get lost in it.`)
     if (coachPane.classList.contains('hidden')) markCoachUnread()
   }, 1400)

@@ -144,6 +144,11 @@ const profile = readJSON('passport_profile', {})
 const NOT_A_NAME = /^(theek|thik|accha|achha|acha|yahan|naya|nayi|bahut|bhookha|bhooki|thoda|bimar|pareshan|khush|student|foreigner|videshi|musafir|tourist|ready|fine|good|okay|lost|sorry|hindi|late|tired|here|new)$/i
 
 function noteProfile(text) {
+  // Spanish self-introductions
+  const mES = /\bme llamo ([a-zA-ZÀ-ÿ]{2,20})\b/i.exec(text) || /\bsoy ([A-ZÀ-Ý][a-zA-ZÀ-ÿ]{1,19})\b/.exec(text)
+  if (mES && !NOT_A_NAME.test(mES[1])) profile.name = mES[1]
+  const fES = /\bsoy de ([a-zA-ZÀ-ÿ ]{2,24})\b/i.exec(text)
+  if (fES) profile.from = fES[1].trim()
   const t = ' ' + text.trim() + ' '
   let m, changed = false
   if (!profile.name) {
@@ -273,7 +278,7 @@ export async function openingLine(r) {
     last
       ? 'Someone you have met before has just walked up to you again.'
       : 'A foreigner you have never spoken to has just walked up to you. Word went round that someone new arrived in town.',
-    'Greet them in ONE short sentence of ${langMeta().name} (Latin script only).',
+    'Greet them in ONE short sentence of ' + langMeta().name + ' (Latin script only).',
     last
       ? 'React to the fact that they are BACK - do not use a generic opening line, and do not repeat what you said last time.'
       : 'Open the way YOU would, mid-task, in your own voice - curious, wary, busy, whatever fits you. Not a neutral hello.',
@@ -578,11 +583,12 @@ const TOPICS = [
   ['help', /\b(madad|help|mushkil|pareshan|problem|kho gaya|khoya|khoyi|lost|passport|bag|saman|samaan)\b/i],
   ['greet', /\b(namaste|namaskar|suprabhat|salaam|hello|hi|hey|good morning|good evening|buenas|hola)\b/i],
 ]
-const REQUEST = /\b(chahiye|de do|dedo|de dijiye|dijiye|dena|do na|lena hai|kharidna|i want|give me|can i have|quiero)\b/i
-const QUESTION = /\?|\b(kya|kyun|kyu|kaun|kaise|kab|kahan|kitna|kitne|what|why|who|how|when|where)\b/i
+const REQUEST = /\b(chahiye|de do|dedo|de dijiye|dijiye|dena|do na|lena hai|kharidna|i want|give me|can i have|quiero|quisiera|deme|dame|me pones?|me das?|necesito|p[oó]ngame)(?!\w)/i
+const QUESTION = /\?|\b(kya|kyun|kyu|kaun|kaise|kab|kahan|kitna|kitne|what|why|who|how|when|where|qu[eé]|qui[eé]n|c[oó]mo|cu[aá]ndo|d[oó]nde|cu[aá]nto|por qu[eé])(?!\w)/i
 // A rough "did they even try Hindi" test. If nothing here matches and it was
 // not a one-word grunt, honest confusion beats a confident non-answer.
 const HINDI_HINT = /\b(main|mai|mera|meri|mere|mujhe|tum|tumhara|tumhari|aap|aapka|aapki|hai|hain|hoon|hun|ho|kya|kyun|kaise|kahan|kitna|kitne|nahi|nahin|haan|han|accha|achha|theek|thik|bahut|thoda|ek|do|teen|char|paanch|chahiye|karo|karta|karti|jao|aao|dena|lena|dekho|suno|bolo|beta|bhai|yaar|arre|namaste|shukriya|phir|abhi|aaj|kal|yahan|wahan|ye|yeh|wo|woh|se|ko|ka|ki|ke|mein|par|aur|bhi|toh|matlab)\b/i
+const SPANISH_HINT = /\b(hola|quiero|quisiera|tengo|necesito|puedo|d[oó]nde|c[oó]mo|cu[aá]nto|gracias|por favor|se[nñ]or|se[nñ]ora|perd[oó]n|vale|bueno|soy|me llamo|est[aá]|muy|aqu[ií]|tres|pan|caf[eé]|pl[aá]tano)(?!\w)/i
 
 const LINES = {
   coach: {
@@ -765,8 +771,19 @@ function bankFor(r, topic) {
   const legacy = r.fallback && r.fallback[topic]
   const list = []
   if (own) list.push(...own)
-  if (legacy && !list.includes(legacy)) list.push(legacy)
-  return list
+  if (legacy !== undefined && legacy !== null) list.push(legacy)
+  // Resolve {hi,es} pairs; for a non-Hindi character, drop untranslated plain
+  // strings (they are Hindi) so the offline brain never answers in the wrong
+  // language — the people.js fallback banks are fully bilingual and remain.
+  const lang = currentLang()
+  const resolved = []
+  for (const item of list) {
+    const isPair = item && typeof item === 'object'
+    if (lang !== 'hi' && !isPair) continue
+    const v = tr(item)
+    if (v && !resolved.includes(v)) resolved.push(v)
+  }
+  return resolved
 }
 
 function pick(r, topic) {
@@ -791,7 +808,7 @@ function topicOf(text) {
   for (const [name, re] of TOPICS) if (re.test(t)) return name
   const words = t.trim().split(/\s+/).filter(Boolean)
   if (words.length <= 2) return 'short'
-  if (!HINDI_HINT.test(t)) return 'confused'   // say so instead of bluffing
+  if (!(currentLang() === 'es' ? SPANISH_HINT : HINDI_HINT).test(t)) return 'confused'   // say so instead of bluffing
   if (QUESTION.test(text)) return 'question'
   return 'default'
 }

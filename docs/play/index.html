@@ -90,11 +90,15 @@
     <div id="title" class="hidden">
       <div class="title-box">
         <div class="title-word">PASSPORT</div>
-        <div class="title-sub">ek sheher jahan sab Hindi bolte hain</div>
+        <div class="title-sub">ek sheher jahan sab Hindi bolte hain · un pueblo donde todos hablan español</div>
         <div id="title-characters"></div>
         <div class="title-new">
           <input id="title-name" type="text" maxlength="24" autocomplete="off"
                  placeholder="naya naam likho…" />
+          <div id="title-langs">
+            <button class="chip lang-pick on" data-lang="hi" type="button">Hindi</button>
+            <button class="chip lang-pick" data-lang="es" type="button">Español</button>
+          </div>
           <button id="title-create" class="chip primary">naya passport</button>
         </div>
         <div class="title-foot">
@@ -108,10 +112,10 @@
     <div id="intro" class="hidden">
       <div class="intro-box">
         <div class="intro-label">PASSPORT</div>
-        <h2>Tum abhi Pueblo pahunche ho.</h2>
+        <h2 id="intro-head">Tum abhi Pueblo pahunche ho.</h2>
         <p class="intro-en">You've just arrived in Pueblo.</p>
         <p>The overnight bus dropped you at the edge of town and drove off — <strong>with your bag still in the hold</strong>. In the bag: your clothes, your phone charger, and your <strong>passport</strong>.</p>
-        <p>What you have: a little cash, the address of a coach named <strong>Marco</strong>, and the Hindi you can piece together.</p>
+        <p>What you have: a little cash, the address of a coach named <strong>Marco</strong>, and <span id="intro-langbit">the Hindi you can piece together</span>.</p>
         <p>Nobody else here speaks English. Welcome home, for now.</p>
         <button id="intro-start" class="chip primary">shuru karo — begin</button>
       </div>

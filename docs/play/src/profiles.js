@@ -80,19 +80,19 @@ export function saveActive() {
   }
 }
 
-export function createCharacter(name) {
+export function createCharacter(name, lang = 'hi') {
   name = String(name || '').trim().slice(0, 24)
   if (!name) return null
   saveActive()
   const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
   const ix = readIndex()
-  ix.push({ id, name, created: Date.now(), lastPlayed: Date.now(),
+  ix.push({ id, name, lang: lang === 'es' ? 'es' : 'hi', created: Date.now(), lastPlayed: Date.now(),
             summary: { stamps: 0, words: 0, level: 1, cefr: 'A1' } })
   writeIndex(ix)
   // fresh world: clear live keys, seed the profile with their name so the
   // GAME knows it. Residents still only know it once you tell them — the
   // conversation profile tracks what the TOWN has learned separately.
-  restoreSnapshot({ passport_profile: JSON.stringify({ givenName: name }) })
+  restoreSnapshot({ passport_profile: JSON.stringify({ givenName: name, lang: lang === 'es' ? 'es' : 'hi' }) })
   localStorage.setItem(ACTIVE_KEY, id)
   localStorage.setItem(BLOB_PREFIX + id, JSON.stringify(liveSnapshot()))
   return id
