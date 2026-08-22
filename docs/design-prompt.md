@@ -38,12 +38,21 @@ Things that matter:
 - Spanish subtitles appear as *training wheels* the player is meant to eventually switch off — so they should be legible but not the centre of attention, and the design should look right with them turned off entirely.
 - A resident should be able to visibly react while you're still mid-sentence (confusion, delight, patience).
 
+## The second hard problem: how do you know someone has something for you?
+
+The game is open-world with side missions, structurally like GTA — free roam anywhere that's unlocked, and missions you pick up from people. But GTA solves discovery with map markers and floating letters, and that solution would wreck this game: the moment a resident has an exclamation point over their head, they stop being a person and become a vending machine.
+
+The intended answer is that **people just tell you.** Rosa mentions her sister needs bread. Carmen complains about the noise upstairs. Your coach says the cousin at the market is expecting you. The coach is the only element allowed to behave like a user interface, and if you've forgotten what you owe whom, you ask him.
+
+So: how do you make a town feel *full of things to do* without marking it up? Is there a diegetic signal — posture, where someone's looking, whether they're free or busy — that reads as "this person would talk to you right now" without becoming an icon? I'd love a proposal here, including the failure case: a player who wanders for five minutes and finds nothing to do.
+
 ## Screens I'd like
 
 1. **Overworld** — the player standing in La Plaza, fountain and panadería visible, Rosa sweeping her step. Show the ambient HUD in its resting state (as minimal as you can justify).
 2. **Mid-conversation with Rosa** — the player is speaking, Rosa is listening, subtitles on. This is the most important screen.
 3. **Same conversation, subtitles off** — to prove the design survives without them.
-4. **Coach debrief** — the coach reviewing how the conversation went. This is the only screen where English appears, and it should feel like a friend on a bench, not a report card.
+4. **Coach debrief** — the coach reviewing how the conversation went. This is the only screen where English appears, and it should feel like a friend on a bench, not a report card. This is also where a player would go to ask "what was I supposed to be doing?", so it doubles as the closest thing the game has to a quest log.
+5. **A resident with something to offer** — the same plaza, but showing however you've decided to signal that Rosa wants something from the player. If your answer is "nothing visual at all," show that and explain how the player finds out instead.
 
 ## Deliverables
 
