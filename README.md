@@ -21,7 +21,7 @@ Every system — world, residents, missions, coach — is built country-agnostic
 
 ## Start here
 
-**[Read the design doc](docs/index.html)** — a long-form, Wait But Why-style explainer of why this should exist and how it works. It's the whole pitch and the whole design. Open `docs/index.html` in a browser.
+**[Read the design doc →](https://dastan92.github.io/passport/)** — a long-form, Wait But Why-style explainer of why this should exist and how it works. It's the whole pitch and the whole design. (Source: [`docs/index.html`](docs/index.html).)
 
 ## Status
 
