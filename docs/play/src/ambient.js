@@ -143,22 +143,29 @@ export function spawnAmbient(scene, occupiedTiles) {
 // Waves are now discrete swells with an envelope, and they only come up when
 // you are near the shore.
 // ---------------------------------------------------------------------------
+// Oud-led Mediterranean/Levantine pieces sit under the town; the two softer
+// cinematic pieces are kept as occasional contrast so it does not loop into
+// wallpaper. Order is shuffled per session but weighted to open on an oud.
 const TRACKS = [
-  './assets/music/HomeWasYou.mp3',
-  './assets/music/MemoriesOfStone.mp3',
-  './assets/music/Convergence.mp3',
+  './assets/music/Desert_City.mp3',     // oud + hand percussion, sparse
+  './assets/music/Ibn_Al-Noor.mp3',     // oud, slow and warm
+  './assets/music/Tabuk.mp3',           // oud, wandering
+  './assets/music/HomeWasYou.mp3',      // strings, contrast
+  './assets/music/MemoriesOfStone.mp3', // strings, contrast
 ]
+const OUD_COUNT = 3
 
 export function createSoundscape() {
   let ctx = null
   let started = false
   let muted = localStorage.getItem('passport_mute') === '1'
   let musicGain = null
+  let musicShelf = null
   let ambGain = null
   let waveTimer = null
   let bellTimer = null
   let audioEl = null
-  let trackIndex = Math.floor(Math.random() * TRACKS.length)
+  let trackIndex = Math.floor(Math.random() * OUD_COUNT)  // always open on an oud
 
   // --- music: HTMLAudio through the graph so we can duck and crossfade ------
   function playNextTrack() {
@@ -172,11 +179,11 @@ export function createSoundscape() {
     g.gain.value = 0
     src.connect(g).connect(musicGain)
 
-    const FADE = 6
+    const FADE = 10   // long, so tracks bleed into each other rather than cut
     el.addEventListener('canplay', () => {
       g.gain.cancelScheduledValues(ctx.currentTime)
       g.gain.setValueAtTime(0.0001, ctx.currentTime)
-      g.gain.exponentialRampToValueAtTime(0.85, ctx.currentTime + FADE)
+      g.gain.exponentialRampToValueAtTime(0.8, ctx.currentTime + FADE)
     }, { once: true })
     el.addEventListener('timeupdate', function onTime() {
       if (!el.duration || Number.isNaN(el.duration)) return
@@ -240,9 +247,14 @@ export function createSoundscape() {
     if (started || muted) return
     ctx = new (window.AudioContext || window.webkitAudioContext)()
     started = true
+    // Roll the top off a little: an oud heard across a plaza, not in your ears.
+    musicShelf = ctx.createBiquadFilter()
+    musicShelf.type = 'lowpass'
+    musicShelf.frequency.value = 7000
+    musicShelf.Q.value = 0.4
     musicGain = ctx.createGain()
-    musicGain.gain.value = 0.34          // present but never in the way
-    musicGain.connect(ctx.destination)
+    musicGain.gain.value = 0.17          // 'soft behind' — felt, not listened to
+    musicGain.connect(musicShelf).connect(ctx.destination)
     ambGain = ctx.createGain()
     ambGain.gain.value = 0.5
     ambGain.connect(ctx.destination)
@@ -273,7 +285,7 @@ export function createSoundscape() {
   function duck(on) {
     if (!ctx || !musicGain) return
     musicGain.gain.cancelScheduledValues(ctx.currentTime)
-    musicGain.gain.linearRampToValueAtTime(on ? 0.1 : 0.34, ctx.currentTime + 0.6)
+    musicGain.gain.linearRampToValueAtTime(on ? 0.05 : 0.17, ctx.currentTime + 0.6)
   }
 
   // Waves louder near the shore (south edge of the map).

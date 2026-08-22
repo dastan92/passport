@@ -397,12 +397,26 @@ el('cv-translate').classList.toggle('on', showTranslation)
 // ---------------------------------------------------------------------------
 // coach pane (right side, toggle any time)
 // ---------------------------------------------------------------------------
-function coachSay(text, speak = true) {
+// Marco is TEXT by default. Two reasons: you need to *hear* Hindi because
+// pronunciation is the skill, but you can *read* English perfectly well — and
+// his paragraphs were the longest, most expensive lines in the game (voice was
+// ~90% of running cost). A play button is offered on every line so you can
+// still hear him pronounce a phrase when that is the point.
+function coachSay(text, speak = false) {
   const line = addLine(coachLog, 'marco', text, 'them coach-line')
+  const btn = document.createElement('button')
+  btn.className = 'say-btn'
+  btn.type = 'button'
+  btn.textContent = '▶'
+  btn.title = 'hear Marco say this'
+  btn.setAttribute('aria-label', 'hear Marco say this line')
+  btn.addEventListener('click', e => {
+    e.stopPropagation()
+    btn.classList.add('playing')
+    tts.speak(text, 'coach', () => btn.classList.remove('playing'))
+  })
+  line.appendChild(btn)
   if (speak) tts.speak(text, 'coach')
-  line.style.cursor = 'pointer'
-  line.title = 'click to replay'
-  line.addEventListener('click', () => tts.speak(text, 'coach'))
   return line
 }
 

@@ -70,3 +70,16 @@ CC0 packs had no cat or seabird worth the download.
 (`three/examples/jsm/loaders/GLTFLoader.js`), MIT licence, © three.js authors.
 Its two dependencies, `utils/BufferGeometryUtils.js` and `utils/SkeletonUtils.js`,
 were already vendored here.
+
+
+## Music — Kevin MacLeod (CC-BY 4.0)
+
+Oud-led Middle Eastern pieces from <https://incompetech.com>.
+
+- *Desert City* — Kevin MacLeod
+- *Ibn Al-Noor* — Kevin MacLeod
+- *Tabuk* — Kevin MacLeod
+
+> Music by Kevin MacLeod (incompetech.com)
+> Licensed under Creative Commons: By Attribution 4.0
+> https://creativecommons.org/licenses/by/4.0/
