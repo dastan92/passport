@@ -16,6 +16,7 @@
     <div id="hud">
       <div id="brand">PUEBLO</div>
       <div id="hud-right">
+        <button id="map-chip" class="chip">map · M</button>
         <button id="voice" class="chip">voice ✓</button>
         <button id="mute" class="chip">sound ✓</button>
         <button id="key-open" class="chip">API</button>
@@ -97,7 +98,22 @@
       </div>
     </div>
 
-    <div id="controls-hint">WASD move · E talk · C coach · Esc exit</div>
+    <!-- LEVEL LAYER: full-screen town map (M) -->
+    <div id="map-screen" class="hidden">
+      <div id="map-box">
+        <div id="map-head">
+          <div>
+            <div id="map-title">PUEBLO</div>
+            <div id="map-sub"></div>
+          </div>
+          <button id="map-close" class="chip">✕</button>
+        </div>
+        <div id="map-grid"></div>
+        <div id="map-hint">M / Esc — band karo · 🔒 abhi band hai · ★ abhi ka kaam · ● tum</div>
+      </div>
+    </div>
+
+    <div id="controls-hint">WASD move · E talk · C coach · M map · Esc exit</div>
     <div id="credit">music: Kevin MacLeod (incompetech.com) &amp; Scott Buckley · CC-BY 4.0</div>
     <script type="module" src="./src/main.js"></script>
   </body>

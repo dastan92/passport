@@ -204,13 +204,150 @@ const CONTENT = {
     success: 'Arre... achha, achha! Chalta hoon. Dekho — kuch hafte pehle tum yahan khade the aur ek shabd nahi nikalta tha. Aur ab tumne mujhe meri hi zabaan mein hara diya. Chalo, bandargah — abhi. Poora sheher wahin hai, aur aaj wo tumhare liye bhi hai.',
     hint: 'Try: "Kyun nahi? Sab aapka intezaar kar rahe hain — chaliye, fiesta mein aaiye!"',
   },
+
+  // === levelspec additions =================================================
+  // Nine more errands from levelspec.js. Chain rows for these live in
+  // EXTRA_CHAIN below (worldspec.js is frozen).
+
+  // ORDERING A DRINK. The first service transaction: request, receive, thank.
+  chai: {
+    title: 'Miguel ke cafe mein chai maango',
+    titleEn: 'Order a drink at Miguel\'s cafe',
+    brief: 'Miguel runs the cafe on the west side of the plaza — striped awning, three little tables, the only place in town with chairs facing the fountain. Sit down and order something to drink, in Hindi. "Ek chai dijiye" is a whole transaction. Bananas were shopping; this is service — someone brings it to you, and you thank them.',
+    objective: 'The player must order a drink from Miguel — chai, coffee, juice, water, anything drinkable — using some request form: "ek chai dijiye", "mujhe coffee chahiye", "ek pani milega?". Just naming a drink with no request around it is not an order. Grammar can be rough; if you understood what they want to drink, serve it.',
+    reward: { item: 'garam chai', repWith: 'miguel' },
+    check: (t) => /\bchai\b|\bchaay\b|\bcoffee\b|\bkaafi\b|\bcafe\b|\bjuice\b|\bpani\b|\bpaani\b|\bdoodh\b|\bnimbu\b|\bwater\b/i.test(t) && /\bchahiye\b|\bdijiye\b|\bdena\b|\bde do\b|\bmilega\b|\bmilegi\b|\bplease\b|\bek\b|\bdo\b|\blaao\b|\blao\b/i.test(t),
+    success: 'Ek chai, garam garam! Baitho, baitho. Pueblo mein pehli chai kabhi nahi bhoolti — aur ye ghar ki taraf se hai.',
+    hint: 'Try: "Namaste! Ek chai dijiye, please."',
+  },
+
+  // HAGGLING. Object to the price and counter with your own number.
+  bhav: {
+    title: 'Pilar se bhav karo',
+    titleEn: 'Haggle the price down with Pilar',
+    brief: 'Back to Pilar\'s stall in El Mercado — she remembers you, which is exactly the problem: she quotes newcomers double. She will name a price for a kilo of oranges. Do not pay it. Say it is too much — "bahut mehnga hai!" — and counter with your own number. She respects a haggler and despises a pushover. Meet her in the middle.',
+    objective: 'The player is buying fruit from Pilar and must HAGGLE: object that the price is too high ("bahut mehnga hai", "itna zyada?", "kam kijiye") AND counter-offer a specific lower number ("teen euro doonga", "do euro?"). Paying whatever she names, or objecting without naming their own number, is NOT success. When they push a real counter-offer, she groans theatrically, meets them near the middle, and closes the deal.',
+    reward: { item: 'ek kilo santre — sahi daam par', repWith: 'pilar' },
+    check: (t) => /\bmehnga\b|\bmehngi\b|\bmahanga\b|\bmahangi\b|\bzyada\b|\bjyada\b|\bkam\b|\bsasta\b|\bsasti\b|\bexpensive\b|\btoo much\b/i.test(t) && /\bek\b|\bdo\b|\bteen\b|\btin\b|\bchar\b|\bchaar\b|\bpaanch\b|\bpanch\b|\bchhe\b|\bsaat\b|\baath\b|\b\d+\b|\beuro\b/i.test(t),
+    success: 'Aiii, tum toh ekdum local ho gaye! Chalo, chaar euro — na tumhara, na mera. Lo santre. Aur kisi ko mat batana maine daam kam kiya, warna poora bazaar sar par chadh jayega.',
+    hint: 'Try: "Bahut mehnga hai! Teen euro mein dijiye."',
+  },
+
+  // FOLLOWING SEQUENCED INSTRUCTIONS. First X, then Y — said back in order.
+  kheti: {
+    title: 'Diego ke khet par haath batao',
+    titleEn: 'Help out at Diego\'s farm',
+    brief: 'Picking week at the olive plot in Las Afueras — Diego\'s family\'s trees, which means Diego has been dragged off his scooter into a basket line, and he is furious about it. Take the west road past the grove marker until the town stops. Ask him what to do, then FOLLOW THE ORDER he gives — say it back to him, "pehle paani, phir tokri", so he knows it landed. Doing step two first is how city people break farms.',
+    objective: 'Diego gives the player two farm tasks in a fixed order — first water the seedlings, then carry the baskets to the shed. The player must show they can follow SEQUENCED instructions: ask what to do and then repeat or confirm the order using sequence words — "pehle paani doon, phir tokri uthaoon?", "theek hai, pehle paani, uske baad tokri". A bare "main madad karunga" with no grasp of the order is NOT success. When they state the steps in the right order, he puts them to work, quietly impressed.',
+    reward: { item: 'khet ke taaza santre', repWith: 'diego' },
+    check: (t) => /\bpehle\b|\bpahle\b|\bphir\b|\bfir\b|\buske baad\b|\bbaad mein\b|\bfirst\b|\bthen\b/i.test(t) && /\bpaani\b|\bpani\b|\btokri\b|\bbeej\b|\bkhet\b|\bkaam\b|\bwater\b|\bbaskets?\b|\bzaitoon\b|\bolive\b|\bsantre\b/i.test(t),
+    success: 'Bhai, tune aadha kaam nipta diya! Chal maan gaya — tu theek hai. Papa ko bolna mat, warna agle hafte bhi bula lenge. Paani pehle, tokri baad mein — yaad rakha na?',
+    hint: 'Try: "Kya karoon? Pehle paani doon, phir tokri uthaoon?"',
+  },
+
+  // REPORTED SPEECH. Carry a complaint without owning it: 'woh kehti hain ki...'
+  jhagda: {
+    title: 'Carmen aur Nadia ka jhagda suljhao',
+    titleEn: 'Settle Carmen and Nadia\'s feud',
+    brief: 'Doña Carmen is at war with her third floor — Nadia rooms right above her, and something up there scrapes across the boards at midnight, every midnight. Carmen will not walk down to the pharmacy and Nadia has no idea she is a villain. Get Carmen\'s side first, then take it to Nadia at the green cross — but say it as REPORTED speech: "Carmen kehti hain ki raat ko shor hota hai." You are the messenger, not the accuser.',
+    objective: 'The player must relay Carmen\'s noise complaint to Nadia using REPORTED SPEECH — "Carmen kehti hain ki...", "unka kehna hai ki...", "woh bolti hain ki raat ko awaaz aati hai" — mentioning the noise or the nights. Complaining in their own voice ("aap raat ko shor karti hain") is not the exercise, and neither is vaguely saying Carmen is angry with no clause about what she SAYS. When the player reports it properly, Nadia is mortified — it is the delivery crates she drags in at midnight — and promises to move them to mornings, sending an apology back down.',
+    reward: { item: 'teesri manzil par shanti', repWith: 'nadia' },
+    check: (t) => /\bkehti\b|\bkehta\b|\bkeh rahi\b|\bkeh rahe\b|\bkehna hai\b|\bkaha ki\b|\bkaha hai\b|\bbolti\b|\bbolta\b|\bboli ki\b|\bbola ki\b|\bshikayat\b|\bsays\b|\bsaid\b/i.test(t) && /\bshor\b|\bawaaz\b|\bawaz\b|\bnoise\b|\braat\b|\bmidnight\b|\bneend\b|\bso nahi\b|\bghaseet/i.test(t),
+    success: 'Hai Allah — woh MAIN hoon? Dawai ke crate raat ko aate hain, main unhe andar kheenchti hoon... mujhe laga sab sote hain. Kal se subah karwaungi. Carmen ji se kehna — mujhe maaf karein, aur ye khansi ka sharbat unke liye le jao.',
+    hint: 'Try: "Carmen kehti hain ki raat ko upar se bahut shor hota hai."',
+  },
+
+  // FAITHFUL RELAY. Memory across the walk: the numbers arrive intact.
+  sandesh: {
+    title: 'Rosa ka sandesh Elena tak pahunchao',
+    titleEn: 'Carry Rosa\'s message to Elena',
+    brief: 'Rosa cannot leave the ovens today and Elena needs an answer about the fiesta bread. Get the message from Rosa herself — listen properly, numbers and all — then walk it across to the school on the church square and say it back to Elena. Not the vibe of it: the message. Fifty is not "kuch", and Saturday morning is not "kabhi".',
+    objective: 'The player is delivering Rosa\'s message to Elena and must relay it FAITHFULLY: Rosa will send fifty rotis for the children on Saturday morning, and she needs the final count by Friday. Success requires the core content intact — the bread, the number fifty (pachaas), and Saturday morning — ideally framed as a relay ("Rosa ne kaha hai ki..."). A vague "Rosa roti bhejegi" with no number and no day is NOT a faithful delivery; ask what else Rosa said. When the numbers arrive whole, Elena is delighted.',
+    reward: { item: 'Elena ka jawaab Rosa ke liye', repWith: 'elena' },
+    check: (t) => /\broti\b|\brotiyan\b|\bbread\b/i.test(t) && /\bpachaas\b|\bpachas\b|\b50\b|\bfifty\b/i.test(t) && /\bshanivaar\b|\bshanivar\b|\bsaturday\b|\bsubah\b/i.test(t),
+    success: 'Pachaas rotiyan, shanivaar subah, ginti shukravaar tak — ek shabd nahi giraya tumne! Rosa se kehna: ginti pakki. Unnees bachche aur ek lalchi teacher — bees karo.',
+    hint: 'Try: "Rosa ne kaha hai ki woh shanivaar subah pachaas rotiyan bhejengi."',
+  },
+
+  // IMPERATIVES AND BODY VERBS. Language with your back in it.
+  jaal: {
+    title: 'Subah jaal kheenchne mein madad karo',
+    titleEn: 'Help haul the nets at dawn',
+    brief: 'Hassan has put your name about, which means Tomás expects you on the harbour front at dawn when the nets come in. This is language with your back in it: pakdo, kheencho, uthao — grab, pull, lift. Tomás will shout the verbs at you; shout them back, tell him what to do with his end. A man holding forty kilos of wet net does not want a paragraph.',
+    objective: 'The player is helping Tomás haul fishing nets and must use IMPERATIVES and body/action verbs about the net work — "jaal pakdo", "kheencho!", "apni taraf kheenchiye", "ab uthao", "ruko, main pakadta hoon". Talking ABOUT helping ("main madad karna chahta hoon") with no action verb directed at the work is NOT it — the errand wants a command or an action in their mouth. When real imperatives fly, the net comes in and Tomás declares them half a fisherman.',
+    reward: { item: 'subah ki pakad ka hissa', repWith: 'tomas' },
+    check: (t) => /\bjaal\b|\bjal\b|\bnets?\b|\brassi\b|\brope\b/i.test(t) && /\bkheench|\bkhench|\bkhinch|\bpakad|\bpakdo\b|\buthao?\b|\butha lo\b|\buthaiye\b|\bchhodo\b|\bpull\b|\bgrab\b|\bhold\b|\blift\b/i.test(t),
+    success: 'Kheencho! Haan, aise! Shabash — jaal aa gaya, poora chandi jaisa chamak raha hai. Ye lo, teri pakad ka hissa — subah uthne walon ko samundar kabhi khaali haath nahi bhejta.',
+    hint: 'Try: "Jaal pakdo! Ab apni taraf kheencho!"',
+  },
+
+  // THE THESIS MISSION. Your own arc, told back, in the past tense.
+  kahani: {
+    title: 'Bachchon ke liye apni kahani',
+    titleEn: 'Your story, for the children',
+    brief: 'This is the one the whole town has been walking you towards. Elena wants the fiesta story rehearsed — YOUR story, in your own words: how you arrived with nothing, what was lost, who helped, how it ended. Past tense, three or four sentences, in order. Not the events — the telling. A few weeks ago you could not say your own name in this language. Say your whole life since the bus.',
+    objective: 'The player must tell Elena their own story of the passport arc as a PAST-TENSE NARRATIVE: at least three connected events about what happened — arriving, losing the bag or passport, the dog or the priest or the townspeople, getting it back, staying. The judge must require actual past-tense narration (tha/thi/gaya/mila/hua forms) across multiple events in sequence — a list of words, a present-tense summary, or a single sentence does NOT pass. Rough grammar is fine; the shape of a told story is the requirement. When it lands, Elena is moved.',
+    reward: { item: 'fiesta ki kahani — taiyar', repWith: 'elena' },
+    // deeper than 'school': three past-tense events and enough words to be a
+    // telling. English past markers deliberately absent, as everywhere else.
+    check: (t) => (String(t).match(/\b(tha|thaa|thi|thee|the|hua|hui|gaya|gayi|gaye|aaya|aayi|liya|diya|mila|mili|dekha|paaya|uthaya|bhaaga|bhaag|raha|rakha|kiya|ban gaya)\b/gi) || []).length >= 3 && /\bpassport\b|\bbag\b|\bkutta\b|\bchispa\b|\bpadre\b|\bpueblo\b|\bsheher\b|\bbus\b|\bsaman\b|\bsamaan\b/i.test(t) && String(t).trim().split(/\s+/).length >= 12,
+    success: 'Bas... perfect. Tumhe pata hai tumne abhi kya kiya? Jis zabaan mein tum apna naam nahi le paate the, usmein tumne apni poori zindagi suna di. Shanivaar ko bachchon ke saamne bilkul aise hi — ek shabd mat badalna.',
+    hint: 'Try: "Main bus se aaya tha aur mera bag kho gaya tha. Ek kutta mera passport le gaya tha. Padre ne use seedhiyon par paaya tha. Ab ye sheher mera ghar ban gaya hai."',
+  },
+
+  // POLITE INVITATION FORMS. Aap, and a real inviting verb.
+  //
+  // ENGINE COMPROMISE: the design wants three personal invitations (Pilar,
+  // Miguel, Sofia), but the engine judges exactly one target per mission. We
+  // target the LAST invitation — Abuela Sofía, the hardest audience in town —
+  // and let the brief route the player past the other two on the way. Only
+  // the Sofía conversation is formally verified.
+  nyota: {
+    title: 'Sab ko fiesta ka nyota do',
+    titleEn: 'Invite the town to the fiesta',
+    brief: 'The fiesta does not have posters; it has you. Walk the town and invite people to Saturday night at the harbour — personally, politely, by name. Start with Pilar at her stall, get Miguel at the cafe, and finish with Abuela Sofía at the flower cart, because if Sofía comes, everyone comes. You know her rule by now: aap, and a real invitation — "aap zaroor aaiye" — not an announcement.',
+    objective: 'The player is personally inviting Abuela Sofía to the fiesta — Saturday night at the harbour — and may mention having invited others on the way. Success requires a POLITE INVITATION form: "aap"-register plus a real inviting verb — "aap zaroor aaiye", "aapko nyota hai", "hum chahte hain ki aap aayen". A bare announcement ("shanivaar ko fiesta hai") without inviting HER is not an invitation, and she will say so. When it comes properly, she accepts, moved that somebody walked over to ask her in person.',
+    reward: { item: 'Sofia ka haan — aur poore sheher ka', repWith: 'sofia' },
+    check: (t) => /\bfiesta\b|\bjashn\b|\butsav\b|\bmela\b|\bparty\b/i.test(t) && /\baaiye\b|\baaiyega\b|\baayiye\b|\baayen\b|\baa jaiye\b|\bzaroor aana\b|\bnyota\b|\bnimantran\b|\bdawat\b|\bdaawat\b|\bpadhariye\b|\binvite\b|\binvitation\b/i.test(t),
+    success: 'Nau saal ho gaye kisi ko mere paas aake nyota dete hue... sab sochte hain, budhiya toh aa hi jayegi. Haan beta, main aaoongi — aur apne sabse safed gulab leke aaoongi. Fiesta mein phool toh hone hi chahiye.',
+    hint: 'Try: "Abuela, shanivaar raat bandargah par fiesta hai — aap zaroor aaiye!"',
+  },
+
+  // TIMES AND QUANTITIES IN ONE NEGOTIATION. Numbers, held under pressure.
+  intezam: {
+    title: 'Rafa ke saath intezam pakka karo',
+    titleEn: 'Lock the fiesta logistics with Rafa',
+    brief: 'Last job before the music starts: the benches. Rafa can run them down from the school to the harbour on the bus — but he needs it in numbers, not vibes. How many benches, and what time he loads them. Go to the stop in El Puerto and pin BOTH in one deal: "bees bench, shanivaar chaar baje". He will quibble about the hour — the schedule, the nap, something. Hold your quantity, land the time.',
+    objective: 'The player must arrange fiesta logistics with Rafa in ONE negotiation containing BOTH a quantity and a time: how many benches (or tables, chairs) — bees, twenty, any concrete count — AND when he should move them ("shanivaar chaar baje", "dopahar ko"). A quantity with no time, or a time with no quantity, is NOT settled — push for the missing half. He counters the hour once (five, not four, after his nap); the player accepting or restating the deal settles it. When both numbers are landed he confirms the whole plan back.',
+    reward: { item: 'fiesta ka poora intezam', repWith: 'rafa' },
+    check: (t) => /\bbees\b|\bdas\b|\bpandrah\b|\bpachees\b|\bpachchees\b|\bdus\b|\b\d+\b/i.test(t) && /\bbench\b|\bbenches\b|\bkursi\b|\bkursiyan\b|\bmez\b|\btables?\b|\bchairs?\b/i.test(t) && /\bbaje\b|\bbajey\b|\bsubah\b|\bdopahar\b|\bshaam\b|\bshanivaar\b|o'?clock/i.test(t),
+    success: 'Bees bench, shanivaar... chaar nahi, paanch baje — dopahar ki neend ke baad, kandha bhi ab theek hai. Pakka: paanch baje school se uthaunga, chhe baje tak bandargah par laga doonga. Dekho toh — driver ko bhi fiesta mein kaam mil gaya.',
+    hint: 'Try: "Bees bench chahiye — shanivaar chaar baje school se le jaoge?"',
+  },
 }
 
+// --- chain rows for the levelspec missions ----------------------------------
+// worldspec.js is frozen, so the nine levelspec ids get their giver/target/
+// chapter rows here, same shape as MISSION_CHAIN, concatenated below.
+// Chapters follow the levels: chai is L1 (chapter 1), bhav is L4 (chapter 2),
+// the rest are L6–L10 (chapter 3). Level ordering itself lives in levelspec.
+const EXTRA_CHAIN = [
+  { id: 'chai',    giver: 'coach',  target: 'miguel', chapter: 1 },
+  { id: 'bhav',    giver: 'coach',  target: 'pilar',  chapter: 2 },
+  { id: 'kheti',   giver: 'miguel', target: 'diego',  chapter: 3 },
+  { id: 'jhagda',  giver: 'carmen', target: 'nadia',  chapter: 3, requiresFact: 'carmen_noise' },
+  { id: 'sandesh', giver: 'rosa',   target: 'elena',  chapter: 3, requiresFact: 'rosa_message' },
+  { id: 'jaal',    giver: 'hassan', target: 'tomas',  chapter: 3 },
+  { id: 'kahani',  giver: 'elena',  target: 'elena',  chapter: 3 },
+  { id: 'nyota',   giver: 'elena',  target: 'sofia',  chapter: 3 },
+  { id: 'intezam', giver: 'elena',  target: 'rafa',   chapter: 3 },
+]
+
 // --- MISSIONS = the spec's chain, wearing the writing above -----------------
-// Order, giver, target, chapter and every fact gate come from worldspec.js.
-// A chain entry with no writing is dropped loudly rather than shipped as a
-// mission full of undefined fields.
-export const MISSIONS = MISSION_CHAIN.map(entry => {
+// Order, giver, target, chapter and every fact gate come from worldspec.js
+// (plus EXTRA_CHAIN for the levelspec nine). A chain entry with no writing is
+// dropped loudly rather than shipped as a mission full of undefined fields.
+export const MISSIONS = [...MISSION_CHAIN, ...EXTRA_CHAIN].map(entry => {
   const c = CONTENT[entry.id]
   if (!c) {
     console.error('missions.js: no content authored for spec mission "' + entry.id + '"')

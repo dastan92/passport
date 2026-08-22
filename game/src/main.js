@@ -9,9 +9,15 @@ import { createController } from './movement.js'
 import { buildPerson, RESIDENTS } from './people.js'
 import { spawnAmbient, createSoundscape } from './ambient.js'
 import { ask, askCoach, getKey, setKey, forgetAll, learnerState, memoryOf, hasLLM, serverReady, getModel, setModel, openingLine, updateImpression, markSeen, impressionOf, judgeMission } from './conversation.js'
-import { activeMission, missionFor, completeMission, missionState } from './missions.js'
+import { activeMission, missionFor, completeMission, missionState, MISSIONS } from './missions.js'
 import * as tts from './tts.js'
 import { tryReveal, factsHeldBy, knownFacts, resetKnowledge } from './knowledge.js'
+// === LEVEL LAYER — imports (owned by progression.js work) ===================
+import { currentLevel, unlockedDistricts, isDistrictOpen, isTileOpen, missionUnlocked, levelProgress, onMissionComplete, resetProgression } from './progression.js'
+import { LEVELS } from './levelspec.js'
+import { DISTRICTS, CAST, castTile } from './worldspec.js'
+import { barrel, signboard, seeded, mat } from './kit.js'
+// ============================================================================
 
 // ---------------------------------------------------------------------------
 // renderer / scene — Alba register: bright coastal morning, saturated, soft
@@ -120,9 +126,29 @@ composer.setSize(window.innerWidth, window.innerHeight)
 const startP = tileToWorld(pos.x, pos.z)
 player.position.set(startP.x, groundHeight(pos.x, pos.z), startP.z)
 
+// === LEVEL LAYER — locked districts block movement ==========================
+// movement.js takes the town object at creation and never edits town.js, so
+// a wrapped isWalkable here gates BOTH free walking and pathfinding. When the
+// player pushes into a locked tile we toast (never an invisible wall — there
+// are visible barriers too, built further down). `levelBump.moving` is set by
+// stepMovement each frame, because `input` is declared after this point.
+const levelBump = { moving: false, last: 0 }
+function gatedWalkable(cx, cz) {
+  if (!isWalkable(cx, cz)) return false
+  if (isTileOpen(cx, cz)) return true
+  if (levelBump.moving && Math.abs(cx - pos.x) + Math.abs(cz - pos.z) <= 2) {
+    const now = performance.now()
+    if (now - levelBump.last > 3500) {
+      levelBump.last = now
+      showToast('Abhi udhar nahi — pehle yahan ka kaam khatam karo', 'finish this level’s errands first')
+    }
+  }
+  return false
+}
+// ============================================================================
 const controller = createController({
   scene, camera, player,
-  town: { isWalkable, tileToWorld, groundHeight, PLAZA_H, COLS, ROWS, TILE },
+  town: { isWalkable: gatedWalkable, tileToWorld, groundHeight, PLAZA_H, COLS, ROWS, TILE },
   // residents are static furniture as far as walking is concerned: you bump
   // around them instead of standing inside them
   obstacles: RESIDENTS.map(r => ({ x: r.group.position.x, z: r.group.position.z, r: 0.34 })),
@@ -186,6 +212,7 @@ function stepMovement(dt) {
     controller.setFocusOverride(null)
   }
   controller.update(dt, talking ? null : readInput())
+  levelBump.moving = !talking && (input.x !== 0 || input.z !== 0)
   animateLocomotion(dt)
   // the rest of the game still thinks in tiles — keep `pos` mirrored
   pos.x = controller.tileX
@@ -244,14 +271,15 @@ function renderPatience() {
 let showTranslation = localStorage.getItem('passport_tr') === '1'
 
 function uiFocused() {
-  return [cvInput, keyInput, coachInput].includes(document.activeElement)
+  // LEVEL LAYER: the map screen pauses input exactly like a focused panel
+  return mapOpen || [cvInput, keyInput, coachInput].includes(document.activeElement)
 }
 
 // ---------------------------------------------------------------------------
 // mission HUD
 // ---------------------------------------------------------------------------
 function refreshMission() {
-  const m = activeMission()
+  const m = gActiveMission()   // LEVEL LAYER: never point at a locked-level errand
   if (!m) {
     missionCard.innerHTML = '<div class="mc-title">Pueblo tumhara hai</div><div class="mc-en">Passport mil gaya — free roam</div>'
     return
@@ -428,7 +456,7 @@ async function _send(text) {
   // Marco is the coach: he knows what you are supposed to be doing even
   // though he is never the errand's target. Without this he was handed a
   // null mission and invented shopkeepers who do not exist.
-  const m = r.id === 'coach' ? activeMission() : missionFor(r.id)
+  const m = r.id === 'coach' ? gActiveMission() : gMissionFor(r.id)   // LEVEL LAYER gating
   // patience first: if they are out, the conversation is over
   setPatience(r.id, getPatience(r.id) + patienceDelta(r.id, text))
   if (getPatience(r.id) <= 0) {
@@ -465,7 +493,7 @@ async function _send(text) {
       if (lateFact) { refreshMission() }
       if (m && (verdict === null ? regexHit : verdict)) {
         const doneLate = completeMission(m.id)
-        if (doneLate) { refreshMission(); stampPassport(doneLate, r) }
+        if (doneLate) { refreshMission(); stampPassport(doneLate, r); levelCheck() }
       }
       return
     }
@@ -503,8 +531,9 @@ async function _send(text) {
       if (done) {
         setPatience(r.id, getPatience(r.id) + 15)
         stampPassport(done, r)
+        levelCheck()   // LEVEL LAYER: maybe this finished the level
         refreshMission()
-        const next = activeMission()
+        const next = gActiveMission()
         // Marco hands off the next errand himself, in the side pane. If it is
         // closed he gets an unread badge rather than talking to nobody.
         setTimeout(() => {
@@ -579,7 +608,7 @@ async function sendCoach() {
   addLine(coachLog, 'tú', text, 'me')
   const pending = addLine(coachLog, '', '···', 'them pending')
   try {
-    const { reply } = await askCoach(text, activeMission(), missionState())
+    const { reply } = await askCoach(text, gActiveMission(), missionState())
     pending.remove()
     coachSay(reply)
   } catch (e) {
@@ -625,7 +654,14 @@ el('key-save').addEventListener('click', () => {
 serverReady.then(ok => { if (ok) el('key-open').classList.add('hidden') })
 })
 el('key-cancel').addEventListener('click', () => keyPanel.classList.add('hidden'))
-el('key-forget').addEventListener('click', () => { resetKnowledge(); forgetAll() })
+el('key-forget').addEventListener('click', () => {
+  // Order matters: missions FIRST, or progression's catch-up loop re-derives
+  // the old level from surviving passport_missions and reset does nothing.
+  resetMissions()
+  resetKnowledge()
+  resetProgression()
+  forgetAll()
+})
 el('key-open').textContent = getKey() ? 'API ✓' : 'API'
 el('mute').addEventListener('click', () => {
   el('mute').textContent = sound.toggleMute() ? 'sound ✕' : 'sound ✓'
@@ -708,7 +744,7 @@ function step(dt) {
       if (d <= 2 && d < best) { best = d; nearby = r }
     }
     if (nearby) {
-      const m = missionFor(nearby.id)
+      const m = gMissionFor(nearby.id)   // LEVEL LAYER gating
       talkPrompt.innerHTML = `<kbd>E</kbd> ${nearby.name} se baat karo` + (m ? ' ★' : '')
       talkPrompt.classList.remove('hidden')
     } else {
@@ -730,6 +766,204 @@ function tick() {
 }
 tick()
 
+// ===========================================================================
+// LEVEL LAYER — gating, barriers, map screen, level ceremony
+// (added by the progression work; everything below this banner up to the
+//  END LEVEL LAYER banner is owned by it)
+// ===========================================================================
+
+// --- mission gating: a mission whose level is not reached is not offered ----
+function gActiveMission() {
+  const m = activeMission()
+  if (m && missionUnlocked(m.id)) return m
+  const done = missionState().done
+  return MISSIONS.find(x => !done.includes(x.id) && missionUnlocked(x.id)) || null
+}
+function gMissionFor(npcId) {
+  // Unlock-aware selection. Deferring to missions.js missionFor() here caused
+  // a soft-lock: it returns the FIRST not-done mission targeting the NPC in
+  // chain order, so Elena's level-9 'school' shadowed her level-7 'sandesh'
+  // and gMissionFor saw only a locked mission — L7 could never complete.
+  const active = activeMission()
+  if (active && active.target === npcId && missionUnlocked(active.id)) return active
+  const st = missionState()
+  return MISSIONS.find(x =>
+    x.target === npcId &&
+    !st.done.includes(x.id) &&
+    missionUnlocked(x.id) &&
+    (!x.requiresFact || hasFact(x.requiresFact))
+  ) || null
+}
+
+// --- physical barriers where an open street meets a closed district ---------
+// Barrel-and-rope line with a BAND sign: the wall the toast talks about.
+const barrierGroup = new THREE.Group()
+scene.add(barrierGroup)
+function rebuildBarriers() {
+  barrierGroup.clear()
+  const rng = seeded(7)
+  const spots = []
+  for (let cz = 0; cz < ROWS; cz++) {
+    for (let cx = 0; cx < COLS; cx++) {
+      if (!isWalkable(cx, cz) || isTileOpen(cx, cz)) continue
+      const openAdj = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) =>
+        isWalkable(cx + dx, cz + dz) && isTileOpen(cx + dx, cz + dz))
+      if (openAdj) spots.push([cx, cz])
+    }
+  }
+  const ropeMat = mat(0xc85a4a)
+  const at = {}
+  for (const [cx, cz] of spots) at[cx + ',' + cz] = true
+  spots.forEach(([cx, cz], i) => {
+    const p = tileToWorld(cx, cz)
+    const y = groundHeight(cx, cz)
+    const b = barrel(rng)
+    b.position.set(p.x, y, p.z)
+    barrierGroup.add(b)
+    // rope to the neighbouring barrier tile east / south, sagging slightly
+    for (const [dx, dz] of [[1, 0], [0, 1]]) {
+      if (!at[(cx + dx) + ',' + (cz + dz)]) continue
+      const q = tileToWorld(cx + dx, cz + dz)
+      const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, TILE, 6), ropeMat)
+      rope.position.set((p.x + q.x) / 2, y + 0.62, (p.z + q.z) / 2)
+      rope.rotation.z = dx ? Math.PI / 2 : 0
+      rope.rotation.x = dz ? Math.PI / 2 : 0
+      barrierGroup.add(rope)
+    }
+    if (i % 7 === 3) {
+      const s = signboard('BAND')
+      s.position.set(p.x, y, p.z + 0.4)
+      barrierGroup.add(s)
+    }
+  })
+}
+rebuildBarriers()
+
+// --- map screen (M) ---------------------------------------------------------
+let mapOpen = false
+let lastUnlocked = null
+const mapScreen = el('map-screen')
+const mapGrid = el('map-grid')
+const mapSub = el('map-sub')
+
+function renderMap(justUnlocked) {
+  const lv = currentLevel()
+  mapSub.textContent = `level ${lv.number} · ${lv.name} — ${lv.nameEn}`
+  mapGrid.innerHTML = ''
+  const px = 100 / COLS, pz = 100 / ROWS
+  for (const [key, d] of Object.entries(DISTRICTS)) {
+    const [x0, z0, x1, z1] = d.rect
+    const open = isDistrictOpen(key)
+    const div = document.createElement('div')
+    div.className = 'map-district' + (open ? ' open' : ' locked') +
+      ((justUnlocked || []).includes(key) ? ' fresh' : '')
+    div.style.left = (x0 * px) + '%'
+    div.style.top = (z0 * pz) + '%'
+    div.style.width = ((x1 - x0 + 1) * px) + '%'
+    div.style.height = ((z1 - z0 + 1) * pz) + '%'
+    let inner = `<div class="md-name">${d.name}</div>`
+    if (open) {
+      const lvls = LEVELS.map((l, i) => ({ l, i })).filter(o => o.l.district === key && o.i <= lv.index)
+      const dn = lvls.reduce((a, o) => a + levelProgress(o.i).done, 0)
+      const tt = lvls.reduce((a, o) => a + levelProgress(o.i).total, 0)
+      if (tt) inner += `<div class="md-stamps">✦ ${dn}/${tt}</div>`
+    } else {
+      inner += '<div class="md-lock">🔒</div>'
+    }
+    div.innerHTML = inner
+    mapGrid.appendChild(div)
+  }
+  // current errand marker at the target resident's tile
+  const errand = gActiveMission()
+  const t = errand ? castTile(errand.target) : null
+  if (t) {
+    const star = document.createElement('div')
+    star.id = 'map-errand'
+    star.textContent = '★'
+    star.title = errand.titleEn
+    star.style.left = ((t[0] + 0.5) * px) + '%'
+    star.style.top = ((t[1] + 0.5) * pz) + '%'
+    mapGrid.appendChild(star)
+  }
+  const dot = document.createElement('div')
+  dot.id = 'map-player'
+  dot.style.left = ((pos.x + 0.5) * px) + '%'
+  dot.style.top = ((pos.z + 0.5) * pz) + '%'
+  mapGrid.appendChild(dot)
+}
+
+function openMap(auto) {
+  if (talking) return
+  renderMap(auto ? lastUnlocked : null)
+  mapOpen = true
+  mapScreen.classList.remove('hidden')
+  el('map-chip').classList.add('on')
+  keys.clear()
+}
+function closeMap() {
+  mapOpen = false
+  lastUnlocked = null
+  mapScreen.classList.add('hidden')
+  el('map-chip').classList.remove('on')
+}
+el('map-chip').addEventListener('click', () => mapOpen ? closeMap() : openMap())
+el('map-close').addEventListener('click', closeMap)
+mapScreen.addEventListener('click', e => { if (e.target === mapScreen) closeMap() })
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase()
+  if (mapOpen && (k === 'm' || k === 'escape')) { e.preventDefault(); closeMap(); return }
+  if (!mapOpen && !talking && !uiFocused() && k === 'm') openMap()
+})
+
+// --- level ceremony ---------------------------------------------------------
+// Called after every confirmed mission completion. If that finished the
+// current level: big stamp variant, double chime, Marco announces what
+// opened, and the map auto-opens once showing the new district.
+function levelCheck() {
+  // barriers must update the instant the world state changes; the ceremony
+  // is only theatre and can stay on its timer.
+
+  const res = onMissionComplete()
+  rebuildBarriers()
+  if (!res.levelFinished) return
+  // let the mission stamp play out first, then the level stamp
+  setTimeout(() => levelCeremony(res), 3600)
+}
+
+function levelCeremony(res) {
+  rebuildBarriers()
+  refreshMission()
+  const lv = res.finishedLevel
+  const nx = res.nextLevel
+  const el2 = document.getElementById('stamp')
+  el2.innerHTML =
+    `<div class="stamp-ring level">` +
+      `<div class="stamp-mark">★</div>` +
+      `<div class="stamp-label">LEVEL ${lv.number} POORA</div>` +
+      `<div class="stamp-title">${lv.name}</div>` +
+      `<div class="stamp-en">${lv.nameEn}</div>` +
+      (nx
+        ? `<div class="stamp-item">agla level: ${nx.name} — ${nx.nameEn}</div>`
+        : `<div class="stamp-item">Pueblo tumhara hai</div>`) +
+    `</div>`
+  el2.classList.remove('hidden', 'go')
+  void el2.offsetWidth
+  el2.classList.add('go')
+  chime()
+  setTimeout(chime, 320)
+  setTimeout(() => el2.classList.add('hidden'), 4200)
+  const opened = (res.newDistricts || []).map(d => DISTRICTS[d] ? DISTRICTS[d].name : d)
+  lastUnlocked = res.newDistricts || null
+  setTimeout(() => {
+    coachSay(nx
+      ? `Level ${lv.number} — "${lv.nameEn}" — done, stamped, celebrated. Level ${nx.number} is yours now: ${nx.name} (${nx.nameEn}). ${opened.length ? opened.join(', ') + ' just opened — the barrels are gone, go look. ' : 'Same streets, deeper water. '}${nx.blurb}`
+      : `That was the last level. The whole town is open, and it knows your name. Go get lost in it.`)
+    if (coachPane.classList.contains('hidden')) markCoachUnread()
+  }, 1400)
+  setTimeout(() => { if (!talking && !mapOpen) openMap(true) }, 4600)
+}
+// ============================ END LEVEL LAYER ==============================
+
 // --- debug / playtest harness ----------------------------------------------
 // The loop is driven by rAF normally, but `step` can be called directly so the
 // whole game can be played without a compositing window.
@@ -749,6 +983,9 @@ window.__test = {
   missionCard: () => missionCard.textContent,
   promptText: () => talkPrompt.classList.contains('hidden') ? null : talkPrompt.textContent,
   toastText: () => toast.classList.contains('hidden') ? null : toast.textContent,
+  // LEVEL LAYER probes
+  map: { open: openMap, close: closeMap, isOpen: () => mapOpen, text: () => mapScreen.textContent },
+  level: { currentLevel, unlockedDistricts, isDistrictOpen, isTileOpen, missionUnlocked, resetProgression, rebuildBarriers, levelCheck, barrierCount: () => barrierGroup.children.length },
   // walk there for real: the controller paths on the grid and then *drives
   // itself* through the same physics the keyboard uses, so this still proves
   // the town is traversable — and now also that it is walkable.

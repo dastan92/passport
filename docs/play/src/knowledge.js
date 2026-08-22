@@ -136,7 +136,7 @@ export const FACTS = [
     topic: /raasta|rasta|kaise ja|kidhar|kis taraf|shortcut|bandargah|\broad\b/i,
     requires: [],
     text: 'Gyarah saal se in galiyon mein ghoom raha hoon — har shortcut, har kachcha raasta mujhe pata hai.',
-    textEn: 'The road? There is only one. Through the olive grove, then down past the church square — and straight on to the water. The bus out of town leaves from the harbour stop at seven in the morning. I have not been into town in eleven years, but the map is right here — in my head.',
+    textEn: 'Diego has roamed these lanes his whole life — every shortcut and back road, straight past the grove, left at the church square, down to the water.',
     coachNote: 'Diego has not walked into town in eleven years and still knows every turn: the grove, the church square, then straight down to the water. He is the map.',
   },
   {
@@ -145,8 +145,42 @@ export const FACTS = [
     topic: /\bdiego\b|olive road|scooter.{0,20}(kahan|kis|kaun)|\bcousin\b/i,
     requires: [],
     text: 'Diego? Mera cousin. Din bhar us scooter par baitha rehta hai olive road ke paas. Sheher ka har raasta usko pata hai.',
-    textEn: 'Diego? He does not come into town at all. His farm is out in Las Afueras — past the olive grove, where the road leaves town. Eleven years since he last came down. If you need something from him, you go out there yourself, friend.',
+    textEn: 'Diego is Miguel\'s cousin — a teenager who hangs around the olive road on his scooter and knows every shortcut in town.',
     coachNote: 'Diego never comes into town. His farm is out west in Las Afueras, past the olive grove where the road leaves — if you want the scooter you go to him.',
+  },
+
+  // === the levelspec errands' gates ========================================
+  // jhagda: the feud has two sides. Carmen's complaint is the gate on the
+  // mission; Nadia's side reveals in the same conversation that settles it.
+  {
+    id: 'carmen_noise',
+    holder: 'carmen',
+    topic: /\bshor\b|\bawaaz\b|\bawaz\b|\bnoise\b|\bjhagda\b|\bfeud\b|\bteesri manzil\b|\bthird floor\b|upar (wali|wala|se).{0,20}(shor|awaaz|awaz|raat)|raat.{0,20}(shor|awaaz|awaz)/i,
+    requires: [],
+    text: 'Aakhir kisi ne poochha! Teesri manzil — meri chhat ke theek upar — roz aadhi raat ko GHIS-GHIS-GHIS! Kuch ghaseeta jaata hai, patthar jaisa bhaari. Woh Nadia hai, dawai wali. Din mein farishta banti hai, raat ko upar hathoda chalta hai. Do mahine se main soyi nahi!',
+    textEn: 'Finally somebody asks! The third floor — right above my ceiling — every midnight, SCRAPE-SCRAPE-SCRAPE! Something dragged, heavy as stone. It is Nadia, the medicine woman. An angel by day, a hammer upstairs by night. I have not slept in two months!',
+    coachNote: 'Carmen swears Nadia drags something heavy across the floor above her every midnight. Before you march into the pharmacy waving accusations, remember you are the messenger: say it as reported speech — Carmen kehti hain ki...',
+  },
+  {
+    id: 'nadia_noise_side',
+    holder: 'nadia',
+    // gated on Carmen's side, so \bcarmen\b here cannot fire off small talk
+    // before the feud is even known to the player.
+    topic: /\bshor\b|\bawaaz\b|\bawaz\b|\bnoise\b|\bcarmen\b|\braat ko\b|\bmidnight\b|\bteesri manzil\b|\bthird floor\b|\bcrates?\b|\bghaseet|\bshikayat\b/i,
+    requires: ['carmen_noise'],
+    text: 'Raat ka shor? ...Achha. Dawai ke crate hafte mein teen raat der se aate hain — supplier ka truck aadhi raat ko pahunchta hai, aur main crates khud andar kheenchti hoon, taaki subah dukaan waqt par khule. Mujhe andaza hi nahi tha ki niche kisi ko sunai deta hai. Kaun keh raha hai... Carmen ji?',
+    textEn: 'The night noise? ...I see. The medicine crates come late three nights a week — the supplier\'s truck arrives around midnight and I drag the crates in myself, so the shop opens on time. I had no idea anyone downstairs could hear. Who is saying this... Doña Carmen?',
+    coachNote: 'So that is the monster upstairs: midnight medicine crates. She had no idea anyone could hear. Tell her what Carmen SAYS — kehti hain ki — and let the apology travel back down the stairs.',
+  },
+  // sandesh: the message itself, learned from Rosa, is the gate.
+  {
+    id: 'rosa_message',
+    holder: 'rosa',
+    topic: /\bsandesh\b|\bmessage\b|\bpaigham\b|elena.{0,40}(sandesh|message|keh|bhej|bol|roti|jawaab)|(sandesh|message|keh|bhej|bol|jawaab).{0,40}elena|fiesta.{0,25}roti|roti.{0,25}fiesta/i,
+    requires: [],
+    text: 'Haan, Elena ko jawaab chahiye — sun, bilkul aise hi kehna: main shanivaar subah pachaas rotiyan bhejungi, bachchon ke liye. LEKIN mujhe ginti shukravaar tak chahiye. Pachaas. Shanivaar subah. Shukravaar tak ginti. Raste mein bhool mat jaana, warna do sau saal purani bakery ki izzat jayegi!',
+    textEn: 'Yes, Elena needs an answer — listen, say it exactly like this: I will send fifty rotis on Saturday morning, for the children. BUT I need the count by Friday. Fifty. Saturday morning. Count by Friday. Do not lose it on the way, or two hundred years of bakery honour goes with it!',
+    coachNote: 'The message is three numbers wearing a sentence: fifty rotis, Saturday morning, count by Friday. Walk it to the school on the church square and say it back to Elena whole.',
   },
 ]
 
