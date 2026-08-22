@@ -3,6 +3,7 @@ import { EffectComposer } from '../vendor/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
+import { PLAYER_SPAWN } from './worldspec.js'
 import { buildTown, isWalkable, tileToWorld, groundHeight, PLAZA_H, COLS, ROWS, TILE } from './town.js'
 import { createController } from './movement.js'
 import { buildPerson, RESIDENTS } from './people.js'
@@ -42,7 +43,7 @@ const OFF_TALK = new THREE.Vector3(1.6, 2.6, 4.0)  // near eye level for convers
 const sun = new THREE.DirectionalLight(0xfff0d0, 2.9)
 sun.position.set(-30, 42, 20)
 sun.castShadow = true
-sun.shadow.mapSize.set(4096, 4096)
+sun.shadow.mapSize.set(2048, 2048)  // 4096 was ~6.6ms/frame — 60% of the render
 const S = 46
 sun.shadow.camera.left = -S; sun.shadow.camera.right = S
 sun.shadow.camera.top = S; sun.shadow.camera.bottom = -S
@@ -92,7 +93,9 @@ for (const r of RESIDENTS) {
   scene.add(b)
 }
 
-const pos = { x: 20, z: 12 }   // player's current TILE — mirrored by movement.js
+// Spawn comes from the spec — a hardcoded tile left the player waking up in
+// La Iglesia, 39 tiles from Marco and the entire chapter-1 opening.
+const pos = { x: PLAYER_SPAWN[0], z: PLAYER_SPAWN[1] }   // player's current TILE — mirrored by movement.js
 const ambient = spawnAmbient(scene, () => [
   [pos.x, pos.z],
   ...RESIDENTS.map(r => r.tile),
@@ -451,7 +454,21 @@ async function _send(text) {
       m ? judgeMission(r, m, text) : Promise.resolve(null),
     ])
     const { reply, source } = replyRes
-    if (talking !== r) return
+    // The player may have walked off or hit Escape while the model was
+    // thinking. The REPLY is lost to them, but what they SAID still happened:
+    // the resident remembered it, so facts must still reveal and errands must
+    // still complete — otherwise a correct answer evaporates and the NPC later
+    // scolds them for repeating a question nobody visibly answered.
+    if (talking !== r) {
+      pending.remove()
+      const lateFact = tryReveal(r.id, text)
+      if (lateFact) { refreshMission() }
+      if (m && (verdict === null ? regexHit : verdict)) {
+        const doneLate = completeMission(m.id)
+        if (doneLate) { refreshMission(); stampPassport(doneLate, r) }
+      }
+      return
+    }
     pending.remove()
     if (!reply || !reply.trim()) {
       cvStatus.textContent = source === 'busy' ? '' : 'koi jawab nahi aaya — phir se bolo'

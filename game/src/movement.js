@@ -49,7 +49,7 @@ export const MOVE_CONFIG = {
   camMinScale: 0.34,     // how far in we WILL pull to stay out of a wall
   camRise: 0.18,         // the camera climbs as it pulls in, so it clears roofs
   camRoofClear: 0.5,     // sightline / camera must clear a roof by this much
-  camLiftMax: 3.5,       // cap on the last-resort climb over a roof
+  camLiftMax: 12.0,       // cap on the last-resort climb over a roof
   camSteps: 7,           // candidate positions between full and tightest
   camPullIn: 20,         // fast when a wall appears
   camPullOut: 3.0,       // slow when it clears — no snapping back
