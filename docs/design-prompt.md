@@ -18,13 +18,19 @@ Only the **first district of the first campaign**: *La Plaza* in the town of Pue
 
 ## Visual direction
 
-Modern pixel art — the reference points are Sea of Stars, Eastward, and Stardew Valley, *not* Game Boy Color. Detailed sprite work with real lighting and atmosphere, but still honestly pixels.
+**The primary reference is Alba: A Wildlife Adventure.** Stylized low-poly 3D, a sun-drenched Spanish Mediterranean town, clean chunky geometry, colour doing the work that texture detail would do in a heavier game. If a screen of Passport could be mistaken for a lost district of Alba's island — but denser, more urban, more lived-in — the art direction is correct.
 
-- **Perspective:** 3/4 top-down, 32px tile grid, characters roughly 64px tall — close enough that faces and body language read.
-- **Palette:** Mediterranean golden hour. Warm lime-washed plaster, terracotta roof tiles, deep cool shadow, bright bounce light off stone. The town should feel *hot and lived-in* — laundry lines, worn steps, chairs left outside the café.
-- **Mood:** unhurried and welcoming. This is a place you want to be stuck in.
+Secondary influence, used with restraint: **Tunic's** camera and light — the discipline of a fixed isometric-ish view that keeps the world readable, and dramatic sun that gives a simple scene depth. We're borrowing its lighting confidence, not its mystery-ruins mood.
 
-Please avoid: Duolingo-style bright gamification, cartoon mascots, XP bars and streak counters plastered over everything, and generic fantasy-RPG UI frames.
+The guiding idea behind both: **this is a diorama.** A small, handmade-feeling model village you look down into, where the sense of quality comes from light, composition and camera — not polygon count.
+
+- **Camera:** high three-quarter view looking down into the town, gently drifting while you wander, easing in when a conversation starts. Shallow depth of field at the frame edges so the town reads like a model.
+- **Geometry:** low-poly, clean silhouettes, no surface clutter. Alba's level of simplification, roughly.
+- **Light is the main character.** Hard Andalusian sun, long shadows across the plaza, warm bounce off white plaster, deep cool shade under awnings. The town at 8am and at 8pm should feel like different places to be.
+- **Palette:** lime-washed white, terracotta, olive, dust, and a deep saturated blue in the shadows. Hot, dry, welcoming.
+- **Atmosphere:** laundry lines, chairs left out at the café, worn steps, dust in the light. Signs of people having lived here a long time.
+
+Please avoid: pixel art (we moved past it deliberately), Duolingo-style bright gamification, cartoon mascots, XP bars, fantasy-RPG UI frames, and the flat over-lit look of most mobile 3D.
 
 ## The hard problem I most want your thinking on
 
@@ -65,5 +71,6 @@ Feel free to push back on anything above if you think there's a better answer. I
 These mockups get handed to an engineer to build in Phaser 4, so a couple of things make that handoff much cheaper:
 
 - **Name your colours.** A palette with hex values and semantic names (`--plaster`, `--shadow-cool`, `--subtitle-bg`) can be lifted straight into code. A picture of a palette can't.
-- **Separate the world from the interface.** The town itself is pixel art on a 32px grid. The overlay — subtitles, the listening indicator, the coach panel — will be built as regular UI over the game canvas, so it can use real fonts and scale cleanly. Please be explicit about which layer each element belongs to.
+- **Separate the world from the interface.** The town is rendered 3D; the overlay — subtitles, the listening indicator, the coach panel — is regular UI drawn over the canvas, so it can use real fonts and scale cleanly. Please be explicit about which layer each element belongs to.
+- **Specify the light and the camera.** Sun angle, shadow softness, colour temperature, field of view, how far the camera pushes in during a conversation. In this direction those settings *are* the art style, so they need to be written down as numbers rather than implied by a picture.
 - **Say what animates.** If the listening indicator pulses or a subtitle fades in, describe the timing and easing. Motion is where this UI will live or die, and it's the thing screenshots can't carry.

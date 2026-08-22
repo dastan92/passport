@@ -300,7 +300,7 @@
 
 <div class="aside">
 <span class="eyebrow">The shape of the game</span>
-If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> — top-down open world, walk everywhere, talk to everyone, regions gated by your progress — but with the structure of <strong>GTA</strong>: free roam anywhere that's open, and <em>missions you pick up from people in the world</em>, not from a lesson menu. (With, yes, better graphics than the Game Boy Color. We have modern engines now. The bar has moved.)
+If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> — top-down open world, walk everywhere, talk to everyone, regions gated by your progress — but with the structure of <strong>GTA</strong>: free roam anywhere that's open, and <em>missions you pick up from people in the world</em>, not from a lesson menu. (With, yes, better graphics than the Game Boy Color — the look we're chasing is <em>Alba: A Wildlife Adventure</em> — stylized low-poly Spanish Mediterranean, a warm little diorama you lean over — with a nod to <em>Tunic</em> for camera discipline and light.)
 </div>
 
 <h3>Campaigns, like Age of Empires</h3>
@@ -566,8 +566,8 @@ If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> 
 <div class="table-wrap">
 <table>
   <tr><th>Piece</th><th>Choice</th><th>Why</th></tr>
-  <tr><td>Game world</td><td>Phaser 4 + TypeScript, in the browser</td><td>Proven 2D engine, runs everywhere, no install. Top-down tilemap town, WASD + one talk button.</td></tr>
-  <tr><td>Movement &amp; collision</td><td>Grid Engine</td><td>Grid-locked movement, tile collision, pathfinding, follow behaviour. Someone already built Pokémon movement and gave it away under MIT. See §8.</td></tr>
+  <tr><td>Game world</td><td>Three.js + TypeScript, in the browser</td><td>Stylized low-poly 3D town, isometric-ish camera, real light. Runs everywhere, no install. WASD + one talk button.</td></tr>
+  <tr><td>Movement &amp; collision</td><td>Logical tile grid under the 3D world</td><td>The world <em>renders</em> in 3D but <em>thinks</em> in tiles — Pokémon movement rules on an invisible grid, which keeps pathfinding, collision and the town generator simple. See §8.</td></tr>
   <tr><td>Resident minds &amp; ears</td><td><code>gemini-3.5-flash-lite</code>, fed your raw microphone audio</td><td>One call: Rosa <em>hears</em> you and answers. No transcription step — see below for why that's the whole ballgame.</td></tr>
   <tr><td>Resident voices</td><td>Streaming Gemini TTS for characters who matter; free browser speech for everyone else</td><td>Rosa gets a real voice. The guy shouting about fish across the plaza does not need one.</td></tr>
   <tr><td>Memory</td><td>Per-resident conversation summaries + a shared "town ledger" of events</td><td>After each chat, the session distills "what Rosa now knows/feels." Gossip = residents reading the ledger.</td></tr>
@@ -636,15 +636,15 @@ Two things worth knowing if you're building this. First, <strong>no Flash-Lite m
 <div class="table-wrap">
 <table>
   <tr><th>Problem</th><th>Someone already solved it</th><th>License</th></tr>
-  <tr><td>Walking around a tile world like it's 1999</td><td><strong>Grid Engine</strong> — grid-locked movement, collision layers, pathfinding, NPCs that follow you</td><td>MIT</td></tr>
-  <tr><td>Drawing 160 characters</td><td><strong>The LPC sprite generator</strong> — define a character as JSON, batch-render the sheet. Its clothing and hair library <em>is</em> our regional variation.</td><td>Mostly CC-BY-SA</td></tr>
-  <tr><td>Authoring many maps per country</td><td><strong>Tiled</strong>, plus its <code>.world</code> files — a manifest that stitches a campaign's towns and interiors into one coordinate space</td><td>Editor GPL; <em>your maps are yours</em></td></tr>
+  <tr><td>Rendering a beautiful world in a browser</td><td><strong>Three.js</strong> — the workhorse of web 3D; lighting, shadows and depth of field are solved problems</td><td>MIT</td></tr>
+  <tr><td>Modelling 160 characters</td><td><strong>One rigged base character + swappable outfits.</strong> CC0 low-poly packs (Quaternius, Kenney) to start; every resident shares one skeleton and one set of animations, and regional variation is clothing and palette</td><td>CC0</td></tr>
+  <tr><td>Authoring many maps per country</td><td><strong>Tiled</strong>, plus its <code>.world</code> files. Yes, even though the game renders in 3D: Tiled authors the <em>logical</em> town — the walkable grid, what stands where — and the renderer builds the 3D scene from that data</td><td>Editor GPL; <em>your maps are yours</em></td></tr>
   <tr><td>NPC spawns, doors, mission triggers</td><td>Tiled <strong>object layers</strong> with typed properties — placed visually, read straight out of JSON</td><td>—</td></tr>
   <tr><td>A free Japan campaign's worth of art</td><td><strong>Ninja Adventure</strong> — coherent Japanese tileset, characters, UI, music</td><td>CC0</td></tr>
 </table>
 </div>
 
-<p>Grid Engine deserves a specific mention, because it is the single largest "don't build this" win available. The exact movement model this game needs — tile-snapped walking, facing directions, collision, NPCs pathing around a plaza on a schedule — is the thing someone else built, maintained for years, and released under MIT. Adopting it removes a month of subtly wrong collision bugs from the project.</p>
+<p>The character decision deserves a specific mention, because it's where 3D quietly beats pixel art at our own game. The pixel-art plan needed 160 hand-assembled sprite sheets; the 3D plan needs <em>one</em> rigged character, a wardrobe of swappable meshes, and a palette per country. Every resident shares a skeleton and one set of animations — Rosa and a Tokyo shopkeeper differ by clothes, colours and animation timing, not by artwork. And a 3D face can do the thing this game actually runs on: look confused, patient, or delighted while you fumble a sentence.</p>
 
 <h3>Why not Unity</h3>
 
@@ -654,7 +654,7 @@ Two things worth knowing if you're building this. First, <strong>no Flash-Lite m
 
 <p>It helps that rendering isn't where the risk lives. Drawing a 2D tile town is solved everywhere; voice latency and NPC memory are not. Nor is "better graphics" really an engine question — Sea of Stars is a 2D game, and what makes it beautiful is art direction, not the renderer. The ceiling here is the quality of the tiles and sprites.</p>
 
-<p>The hedge is that almost none of this is engine-locked. Tiled maps and LPC sprites load in Godot and Unity too, so if the browser turns out to be the wrong bet, the world, the cast and the missions all survive and only the runtime is thrown away. If it ever does go native, the pick is Godot — free, MIT, excellent 2D — not Unity.</p>
+<p>The hedge is that almost none of this is engine-locked. The town generator emits data, glTF models load anywhere, and the cast, missions and learner model are engine-agnostic — so if the browser turns out to be the wrong bet, only the renderer is thrown away. If it ever does go native, the pick is Godot — free, MIT, and comfortable in 3D — not Unity.</p>
 
 <h3>The town generator we do have to write</h3>
 
@@ -662,7 +662,7 @@ Two things worth knowing if you're building this. First, <strong>no Flash-Lite m
 
 <p>Wave Function Collapse deserves its own warning here, because it's the algorithm everyone reaches for and it's the wrong tool. WFC gives you beautiful <em>texture</em> and incoherent <em>structure</em> — it will happily produce a town whose streets don't reach the plaza. Developers who've shipped it publicly concluded it doesn't survive contact with a real game. Use it for grass and clutter; never for the map.<details class="fn"><summary>7</summary><span class="fn-body">The other trap is licensing, and it bites late. Most of the good free art is CC-BY-SA, which is copyleft: art derivatives — including AI reskins — have to be shared alike, and every asset needs crediting. That's survivable, but only if the credits file is generated from day one. Reconstructing the provenance of three hundred assets at launch is a genuinely miserable week.</span></details></p>
 
-<p>So we write one modest generator ourselves: plaza → main street → side streets → lots → buildings tagged by <em>function</em>, emitted as Tiled JSON, then hand-polished. It's a few hundred lines, and it's the piece that makes a country a config file.</p>
+<p>So we write one modest generator ourselves: plaza → main street → side streets → lots → buildings tagged by <em>function</em>, emitted as Tiled JSON, then hand-polished. The renderer reads that logical map and instantiates the 3D scene — building meshes on the footprints, props on the furniture markers — which is how the same town data would survive even an engine swap. It's a few hundred lines, and it's the piece that makes a country a config file.</p>
 
 <figure>
 <svg viewBox="0 0 640 210" role="img" aria-label="Pipeline diagram: one campaign config file flows through a town generator into Tiled, then into the game, with a country swap changing only the config">
@@ -680,8 +680,8 @@ Two things worth knowing if you're building this. First, <strong>no Flash-Lite m
   <text class="svg-label svg-label-muted" x="374" y="101" text-anchor="middle">+ hand polish</text>
   <path class="sk-thin" d="M 432 91 L 462 91"/><polygon class="fill-accent" points="468,91 458,86 458,96"/>
   <rect class="fill-card" x="470" y="60" width="112" height="62" rx="6"/>
-  <text class="svg-label svg-label-accent" x="526" y="86" text-anchor="middle">Phaser 4</text>
-  <text class="svg-label svg-label-muted" x="526" y="101" text-anchor="middle">+ Grid Engine</text>
+  <text class="svg-label svg-label-accent" x="526" y="86" text-anchor="middle">Three.js</text>
+  <text class="svg-label svg-label-muted" x="526" y="101" text-anchor="middle">tile-grid logic</text>
   <!-- swap loop -->
   <path class="sk-thin sk-accent2" d="M 70 132 L 70 172 L 526 172 L 526 132" stroke-dasharray="4 5"/>
   <polygon points="70,128 64,140 76,140" style="fill:var(--accent-2)"/>
@@ -693,7 +693,7 @@ Two things worth knowing if you're building this. First, <strong>no Flash-Lite m
 
 <h3>Where AI actually helps with art (and where it doesn't)</h3>
 
-<p>Worth being precise, because the intuition is backwards. Image models in 2026 are genuinely good at character portraits and props, and still <strong>bad at tilesets</strong> — a tileset has to align to a grid and connect seamlessly at every edge and corner, and general-purpose models paint things that merely <em>look</em> like pixel art at 1024px, with soft edges and a palette that quietly explodes to hundreds of colours.</p>
+<p>Worth being precise, because the intuition is backwards. Image models in 2026 are genuinely good at concept art, portraits and textures, and still bad at <strong>game-ready geometry</strong> — generated meshes arrive with broken topology, no rig, and no consistency across a family of assets. The reliable wins are upstream and around the edges: concept sheets to hand a modeller (or to guide kit-bashing), palette and material exploration, and texture variation on models whose geometry is already right.</p>
 
 <p>So the useful move isn't "generate a Japanese tileset." It's <strong>reskinning geometry that's already correct</strong>: take the base tiles, whose grid and perspective are known-good, and restyle the facades and palette per country. Spain's warm plaster and terracotta; Japan's tile roofs and signage. The hard structural work is inherited; the model only changes how it looks.</p>
 
@@ -711,7 +711,7 @@ Every world asset must be produced by a script, not a session. If making a resid
 <div class="table-wrap">
 <table>
   <tr><th>Phase</th><th>Ships</th><th>The question it answers</th></tr>
-  <tr><td><strong>1 · La Plaza</strong></td><td>One district, three residents + the coach, working voice loop, two missions — built on Phaser 4 + Grid Engine + Tiled, with the sprite pipeline scripted from the first character.</td><td>Is talking to Rosa actually magical?</td></tr>
+  <tr><td><strong>1 · La Plaza</strong></td><td>One district, three residents + the coach, working voice loop, two missions — built on Three.js over a logical tile grid, with the character pipeline (one rig, swappable outfits) scripted from the first resident.</td><td>Is talking to Rosa actually magical?</td></tr>
   <tr><td><strong>2 · Memory</strong></td><td>Persistent resident memory, learner model, i+1 calibration, reputation-based gating to El Mercado.</td><td>Does the town feel <em>alive</em> across days?</td></tr>
   <tr><td><strong>3 · The open world</strong></td><td>All four districts of Pueblo, missions that span residents, gossip ledger, resident schedules.</td><td>Does free roam + missions beat a lesson tree?</td></tr>
   <tr><td><strong>4 · The second stamp</strong></td><td>Borgo, the Italy campaign — built <em>only</em> from content: new tileset, new cast, new culture file. No engine changes allowed.</td><td>Is this a game, or was it one town?</td></tr>
@@ -726,15 +726,12 @@ Every world asset must be produced by a script, not a session. If making a resid
 <div class="table-wrap">
 <table>
   <tr><th>Thing</th><th>Where</th><th>License</th></tr>
-  <tr><td>Phaser 4</td><td><a href="https://github.com/phaserjs/phaser">github.com/phaserjs/phaser</a></td><td>MIT</td></tr>
-  <tr><td>Grid Engine</td><td><a href="https://github.com/Annoraaq/grid-engine">github.com/Annoraaq/grid-engine</a></td><td>MIT</td></tr>
+  <tr><td>Three.js</td><td><a href="https://threejs.org/">threejs.org</a></td><td>MIT</td></tr>
+  <tr><td>Art direction references</td><td><a href="https://store.steampowered.com/app/1337010/Alba_A_Wildlife_Adventure/">Alba: A Wildlife Adventure</a> · <a href="https://store.steampowered.com/app/553420/TUNIC/">Tunic</a></td><td>—</td></tr>
   <tr><td>Tiled</td><td><a href="https://www.mapeditor.org/">mapeditor.org</a> · <a href="https://doc.mapeditor.org/en/stable/manual/worlds/">worlds docs</a></td><td>GPL editor, your maps are yours</td></tr>
-  <tr><td>LPC character generator</td><td><a href="https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator">Universal-LPC-Spritesheet-Character-Generator</a></td><td>Art mostly CC-BY-SA</td></tr>
-  <tr><td>LPC batch tooling</td><td><a href="https://github.com/bluecarrot16/lpctools">bluecarrot16/lpctools</a></td><td>—</td></tr>
-  <tr><td>LPC terrain tiles</td><td><a href="https://opengameart.org/content/lpc-terrains">opengameart.org/content/lpc-terrains</a></td><td>CC-BY-SA</td></tr>
+  <tr><td>CC0 low-poly character/building kits</td><td><a href="https://quaternius.com/">quaternius.com</a> · <a href="https://kenney.nl/assets/category:3D">kenney.nl 3D</a></td><td>CC0</td></tr>
   <tr><td>UI, icons, grey-boxing</td><td><a href="https://www.kenney.nl/assets/rpg-urban-pack">Kenney RPG Urban Pack</a></td><td>CC0</td></tr>
-  <tr><td>Japan campaign art</td><td><a href="https://pixel-boy.itch.io/ninja-adventure-asset-pack">Ninja Adventure pack</a></td><td>CC0</td></tr>
-  <tr><td>Agent memory patterns to read</td><td><a href="https://github.com/a16z-infra/ai-town">a16z-infra/ai-town</a> — read it, don't fork it</td><td>MIT</td></tr>
+    <tr><td>Agent memory patterns to read</td><td><a href="https://github.com/a16z-infra/ai-town">a16z-infra/ai-town</a> — read it, don't fork it</td><td>MIT</td></tr>
   <tr><td>The original paper</td><td><a href="https://arxiv.org/abs/2304.03442">Generative Agents (Park et al.)</a></td><td>—</td></tr>
   <tr><td>Gemini model &amp; pricing docs</td><td><a href="https://ai.google.dev/gemini-api/docs/models">ai.google.dev</a> — re-check, preview models move</td><td>—</td></tr>
 </table>
