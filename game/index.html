@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Passport · La Plaza</title>
+    <title>Passport · Pueblo</title>
     <link rel="stylesheet" href="./src/style.css" />
     <script type="importmap">
       { "imports": { "three": "./vendor/three.module.js" } }
@@ -14,20 +14,24 @@
     <div id="vignette"></div>
 
     <div id="hud">
-      <div id="brand">PUEBLO · LA PLAZA</div>
+      <div id="brand">PUEBLO</div>
       <div id="hud-right">
+        <button id="mute" class="chip">sonido ✓</button>
         <button id="key-open" class="chip">clave</button>
-        <span id="clock">18:40</span>
+        <button id="coach-toggle" class="chip">coach · C</button>
+        <span id="clock">10:30</span>
       </div>
     </div>
 
+    <div id="mission-card"></div>
+    <div id="toast" class="hidden"></div>
     <div id="talk-prompt" class="hidden"></div>
 
     <div id="convo" class="hidden">
       <div id="cv-head">
         <div id="cv-id">
-          <div id="cv-name">Rosa</div>
-          <div id="cv-role">panadera</div>
+          <div id="cv-name"></div>
+          <div id="cv-role"></div>
         </div>
         <div id="cv-actions">
           <button id="cv-translate" class="chip" title="mostrar traducción">EN</button>
@@ -43,13 +47,29 @@
       <div id="cv-status"></div>
     </div>
 
+    <div id="coach-pane" class="hidden">
+      <div id="coach-head">
+        <div>
+          <div id="coach-name">Marco</div>
+          <div id="coach-sub">tu coach · habla inglés</div>
+        </div>
+        <button id="coach-close" class="chip">✕</button>
+      </div>
+      <div id="coach-log"></div>
+      <div id="coach-foot">
+        <input id="coach-input" type="text" autocomplete="off" spellcheck="false"
+               placeholder="ask me anything…" />
+        <button id="coach-send" class="chip primary">→</button>
+      </div>
+    </div>
+
     <div id="key-panel" class="hidden">
       <div class="kp-box">
         <h3>Gemini API key</h3>
         <p>Residents run on Gemini. Without a key they fall back to a few scripted
-           lines. The key is stored only in this browser's localStorage and is sent
-           straight to Google — but note that any key used in a browser is visible
-           to anyone with access to this machine, so use a restricted key.</p>
+           lines. The key is stored only in this browser's localStorage and sent
+           straight to Google — but any key used in a browser is visible to anyone
+           with access to this machine, so use a restricted key.</p>
         <input id="key-input" type="password" placeholder="AIza…" autocomplete="off" />
         <div class="kp-row">
           <button id="key-save" class="chip primary">guardar</button>
@@ -59,7 +79,7 @@
       </div>
     </div>
 
-    <div id="controls-hint">WASD moverse · E hablar · Esc salir</div>
+    <div id="controls-hint">WASD moverse · E hablar · C coach · Esc salir</div>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>

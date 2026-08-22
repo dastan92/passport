@@ -296,3 +296,62 @@ export function bunting(from, to, height, rng) {
   }
   return g
 }
+
+export function palmTree(rng) {
+  const g = new THREE.Group()
+  const segs = 5
+  let px = 0
+  const lean = (rng() - 0.5) * 0.5
+  for (let i = 0; i < segs; i++) {
+    const seg = cyl(0.1 - i * 0.012, 0.13 - i * 0.012, 0.75, 6, 0x9a7b52)
+    px += lean * (i / segs)
+    seg.position.set(px, 0.35 + i * 0.7, 0)
+    seg.rotation.z = lean * 0.35
+    g.add(seg)
+  }
+  const topY = 0.35 + segs * 0.7
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2
+    const frond = rbox(1.7, 0.05, 0.4, i % 2 ? 0x6f9a4a : 0x87a95a, 0.02)
+    frond.position.set(px + Math.cos(a) * 0.8, topY + 0.1 - Math.abs(Math.sin(i)) * 0.12, Math.sin(a) * 0.8)
+    frond.rotation.y = -a
+    frond.rotation.z = 0.35 + rng() * 0.2
+    g.add(frond)
+  }
+  for (let i = 0; i < 3; i++) {
+    const coco = sph(0.09, 0x8a6f4d, 0)
+    coco.position.set(px + (rng() - 0.5) * 0.3, topY - 0.15, (rng() - 0.5) * 0.3)
+    g.add(coco)
+  }
+  return g
+}
+
+export function boat(rng, hue) {
+  const g = new THREE.Group()
+  const hull = rbox(1.1, 0.5, 2.6, hue, 0.16)
+  hull.position.y = 0.25
+  g.add(hull)
+  const inner = rbox(0.8, 0.3, 2.2, PAL.wood, 0.1)
+  inner.position.y = 0.45
+  g.add(inner)
+  const rim = rbox(1.16, 0.09, 2.66, PAL.woodDark, 0.04)
+  rim.position.y = 0.52
+  g.add(rim)
+  for (const z of [-0.6, 0.3]) {
+    const bench2 = rbox(0.85, 0.07, 0.3, PAL.wood, 0.02)
+    bench2.position.set(0, 0.42, z)
+    g.add(bench2)
+  }
+  return g
+}
+
+export function rock(rng) {
+  const g = new THREE.Group()
+  for (let i = 0; i < 3; i++) {
+    const r = sph(0.35 + rng() * 0.4, i % 2 ? 0xa8a090 : 0x968e7e, 0, { flat: true })
+    r.position.set((rng() - 0.5) * 0.8, 0.1 + rng() * 0.25, (rng() - 0.5) * 0.8)
+    r.scale.y = 0.7
+    g.add(r)
+  }
+  return g
+}

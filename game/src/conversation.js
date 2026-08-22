@@ -45,7 +45,7 @@ export function forgetAll() {
   location.reload()
 }
 
-function systemPrompt(r) {
+function systemPrompt(r, mission) {
   const past = memoryOf(r.id)
   const summary = past.length
     ? `You have met this person before. Recent exchanges (oldest first):\n` +
@@ -64,16 +64,18 @@ RULES — these matter more than anything else:
 - You have your own life, mood and opinions. You are not a helpful assistant. You can be busy, teasing, nosy.
 - Never use emoji. Never use asterisks or stage directions.
 
-${summary}`
+${summary}${mission ? `
+
+ACTIVE SITUATION: the player has been sent to you with a task. ${mission.objective} If they accomplish it, go along with it naturally in character (hand over the goods, answer the question). Do not mention that this is a task or a game.` : ''}`
 }
 
-async function callGemini(r, text, key) {
+async function callGemini(r, text, key, mission) {
   const history = memoryOf(r.id).flatMap(t => ([
     { role: 'user', parts: [{ text: t.p }] },
     { role: 'model', parts: [{ text: t.r }] },
   ]))
   const body = {
-    systemInstruction: { parts: [{ text: systemPrompt(r) }] },
+    systemInstruction: { parts: [{ text: systemPrompt(r, mission) }] },
     contents: [...history, { role: 'user', parts: [{ text }] }],
     generationConfig: { maxOutputTokens: 200 },
   }
@@ -103,13 +105,13 @@ function scriptedReply(r, text) {
   return bank.default
 }
 
-export async function ask(r, text) {
+export async function ask(r, text, mission) {
   noteProduction(text)
   const key = getKey()
   let reply, source
   if (key) {
     try {
-      reply = await callGemini(r, text, key)
+      reply = await callGemini(r, text, key, mission)
       source = 'gemini'
     } catch (e) {
       reply = scriptedReply(r, text)
@@ -122,4 +124,37 @@ export async function ask(r, text) {
   }
   remember(r.id, { p: text, r: reply })
   return { reply, source }
+}
+
+
+// --- coach side-pane: English-first, mission-aware, always available --------
+export async function askCoach(text, mission, mstate) {
+  noteProduction(text)
+  const key = getKey()
+  const sys = `You are Marco, the player's language coach in Pueblo, a Spanish coastal town where every other character speaks only Spanish. You are the ONE person who speaks English. Your job: help the player survive and learn — translate phrases they ask about, explain what someone probably meant, give them the exact Spanish sentence to try next, and encourage them to go say it out loud to a real resident. Keep replies short and practical (2-4 sentences). Never do a long grammar lecture.${mission ? `
+
+Their current mission: "${mission.titleEn}" — ${mission.brief} If they seem lost, remind them; the magic phrase hint is: ${mission.hint}` : ''}
+Missions completed so far: ${mstate?.done?.length || 0}. Inventory: ${mstate?.inventory?.join(', ') || 'nothing yet'}.`
+  if (!key) {
+    await new Promise(r => setTimeout(r, 300))
+    if (mission && /qué|how|what|help|ayuda|stuck|lost/i.test(text))
+      return { reply: `${mission.brief} ${mission.hint}`, source: 'scripted' }
+    return { reply: 'Without an API key I am running on fumes — but here is the golden rule: walk up, say "hola", and try. ' + (mission ? mission.hint : ''), source: 'scripted' }
+  }
+  try {
+    const body = {
+      systemInstruction: { parts: [{ text: sys }] },
+      contents: [{ role: 'user', parts: [{ text }] }],
+      generationConfig: { maxOutputTokens: 250 },
+    }
+    const res = await fetch(`${ENDPOINT(MODEL)}?key=${encodeURIComponent(key)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error(String(res.status))
+    const data = await res.json()
+    const out = data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || ''
+    return { reply: out.trim() || '(no reply)', source: 'gemini' }
+  } catch (e) {
+    return { reply: (mission ? mission.hint + ' — ' : '') + '(API error: ' + e.message + ')', source: 'error' }
+  }
 }
