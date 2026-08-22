@@ -464,7 +464,12 @@ async function _send(text) {
       refreshMission()
     }
     // mission completion
-    if (m && m.check(text)) {
+    // An errand is satisfied by the CONVERSATION, not by one heroic sentence.
+    // Requiring "mera naam X hai AND mujhe roti chahiye" in a single message
+    // meant the natural exchange — say your name, she answers, then order —
+    // never completed anything.
+    const saidLately = memoryOf(r.id).slice(-5).map(t => t.p).join(' . ')
+    if (m && (m.check(text) || m.check(saidLately + ' . ' + text))) {
       const done = completeMission(m.id)
       if (done) {
         setPatience(r.id, getPatience(r.id) + 15)
