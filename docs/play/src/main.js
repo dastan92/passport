@@ -7,7 +7,7 @@ import { buildTown, isWalkable, tileToWorld, groundHeight, PLAZA_H, COLS, ROWS, 
 import { createController } from './movement.js'
 import { buildPerson, RESIDENTS } from './people.js'
 import { spawnAmbient, createSoundscape } from './ambient.js'
-import { ask, askCoach, getKey, setKey, forgetAll, learnerState, memoryOf, hasLLM, serverReady, getModel, setModel, openingLine, updateImpression, markSeen, impressionOf } from './conversation.js'
+import { ask, askCoach, getKey, setKey, forgetAll, learnerState, memoryOf, hasLLM, serverReady, getModel, setModel, openingLine, updateImpression, markSeen, impressionOf, judgeMission } from './conversation.js'
 import { activeMission, missionFor, completeMission, missionState } from './missions.js'
 import * as tts from './tts.js'
 import { tryReveal, factsHeldBy, knownFacts, resetKnowledge } from './knowledge.js'
@@ -361,21 +361,26 @@ function openConvo(r) {
   const first = addLine(cvLog, '', r.opener, 'them')
   if (showTranslation && r.openerEn) addLine(cvLog, '', r.openerEn, 'tr')
   markSeen(r.id)
-  if (memoryOf(r.id).length) {
-    openingLine(r).then(line => {
-      if (talking === r && line) {
-        first.querySelector('.cv-text').textContent = line
-        tts.speak(line, r.id)
-      }
-    })
-  }
+  // The authored line is a placeholder so the panel is never empty; the spoken
+  // line is always the generated one, so no two playthroughs open alike.
+  let spokeOpener = false
+  openingLine(r).then(line => {
+    if (talking !== r) return
+    if (line) {
+      first.querySelector('.cv-text').textContent = line
+      tts.speak(line, r.id)
+    } else if (!spokeOpener) {
+      tts.speak(r.opener, r.id)   // generation failed — fall back to the script
+    }
+    spokeOpener = true
+  })
   panel.classList.remove('hidden')
   sound.duck(true)
   talkPrompt.classList.add('hidden')
   cvStatus.textContent = hasLLM() ? '' : 'no API key · limited replies'
   if (getPatience(r.id) < 20) setPatience(r.id, 20) // time cools tempers a little
   renderPatience()
-  if (!memoryOf(r.id).length) tts.speak(r.opener, r.id)
+
   setTimeout(() => cvInput.focus(), 60)
   r.group.userData.turnTo = player.position.clone()
 }
@@ -437,7 +442,15 @@ async function _send(text) {
     knowledge: held.hidden.length || held.known.length ? `\nTHINGS YOU KNOW${held.known.length ? ' (already told them: ' + held.known.map(f => f.text).join(' | ') + ')' : ''}${held.hidden.length ? '. NOT yet told them — reveal ONLY if they ask about the relevant topic, never volunteer it unprompted: ' + held.hidden.map(f => f.text).join(' | ') : ''}\n` : '',
   }
   try {
-    const { reply, source } = await ask(r, text, m, extra)
+    // Judge the errand alongside generating the reply, not after it — the
+    // verdict depends only on what the player said, so it costs no extra wait.
+    const saidLately = memoryOf(r.id).slice(-5).map(t => t.p).join(' . ')
+    const regexHit = !!(m && (m.check(text) || m.check(saidLately + ' . ' + text)))
+    const [replyRes, verdict] = await Promise.all([
+      ask(r, text, m, extra),
+      m ? judgeMission(r, m, text) : Promise.resolve(null),
+    ])
+    const { reply, source } = replyRes
     if (talking !== r) return
     pending.remove()
     if (!reply || !reply.trim()) {
@@ -463,13 +476,12 @@ async function _send(text) {
       if (fact.coachNote) coachSay(fact.coachNote, false)
       refreshMission()
     }
-    // mission completion
-    // An errand is satisfied by the CONVERSATION, not by one heroic sentence.
-    // Requiring "mera naam X hai AND mujhe roti chahiye" in a single message
-    // meant the natural exchange — say your name, she answers, then order —
-    // never completed anything.
-    const saidLately = memoryOf(r.id).slice(-5).map(t => t.p).join(' . ')
-    if (m && (m.check(text) || m.check(saidLately + ' . ' + text))) {
+    // Mission completion. The resident's judgement is authoritative when the
+    // model is available: a keyword list cannot tell "mujhe teen kele chahiye"
+    // (buying) from "kya teen kele mehnge hain?" (asking the price), and it
+    // wrongly passed the second. The regex is the offline fallback only.
+    const achieved = verdict === null ? regexHit : verdict
+    if (m && achieved) {
       const done = completeMission(m.id)
       if (done) {
         setPatience(r.id, getPatience(r.id) + 15)

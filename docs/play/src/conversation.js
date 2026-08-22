@@ -214,12 +214,44 @@ export async function updateImpression(r) {
 // The first thing they say when you walk up. The authored line stands on the
 // very first meeting because it establishes who they are; after that the
 // greeting is generated from what they remember, so no two visits open alike.
+// ---------------------------------------------------------------------------
+// Did the player actually pull the errand off? A regex can only ask whether a
+// string held certain tokens; it cannot tell "mujhe teen kele chahiye" from
+// "kya teen kele mehnge hain?" (a price question), and it misses every
+// phrasing nobody thought of. So the resident judges, from the exchange.
+// ---------------------------------------------------------------------------
+export async function judgeMission(r, mission, playerText) {
+  if (!mission || !hasLLM()) return null
+  const past = memoryOf(r.id).slice(-4)
+  const convo = past.map(t => 'THEM: ' + t.p + ' / YOU: ' + t.r).join(' // ')
+  const sys = 'You judge whether a language learner achieved a goal in conversation. ' +
+    'Answer with exactly one word: YES or NO. Nothing else.'
+  const q = [
+    'GOAL: ' + mission.objective,
+    past.length ? 'EARLIER IN THIS CONVERSATION: ' + convo : '',
+    'THEY JUST SAID: "' + playerText + '"',
+    'Their grammar does not need to be correct and their spelling may be rough.',
+    'Answer YES only if, taking the whole conversation together, they have now',
+    'genuinely communicated the goal to you. Answer NO if they only asked about',
+    'it, talked around it, or you had to guess what they meant.',
+    'YES or NO:',
+  ].filter(Boolean).join(' ')
+  try {
+    const out = await callModel({
+      systemInstruction: { parts: [{ text: sys }] },
+      contents: [{ role: 'user', parts: [{ text: q }] }],
+      generationConfig: { maxOutputTokens: 200, temperature: 0 },
+    })
+    return /^\s*yes\b/i.test(String(out || '')) ? true : false
+  } catch (e) { return null }   // null = undecided, caller falls back to regex
+}
+
 export async function openingLine(r) {
   const past = memoryOf(r.id)
   const imp = impressionOf(r.id)
-  if (!past.length || !hasLLM()) return null
+  if (!hasLLM()) return null
   const mins = imp && imp.lastSeen ? Math.round((Date.now() - imp.lastSeen) / 60000) : null
-  const last = past[past.length - 1]
+  const last = past.length ? past[past.length - 1] : null
 
   // Deliberately NOT the full resident prompt: that one is written to sustain a
   // whole conversation, and against a short output cap the model just returned
@@ -228,18 +260,22 @@ export async function openingLine(r) {
   const sys = [
     'You are ' + r.name + ', ' + r.age + ', ' + r.role + ' in Pueblo. ' + (r.persona || ''),
     r.agenda ? 'On your mind today: ' + r.agenda : '',
-    'Someone you have met before has just walked up to you again.',
+    last
+      ? 'Someone you have met before has just walked up to you again.'
+      : 'A foreigner you have never spoken to has just walked up to you. Word went round that someone new arrived in town.',
     'Greet them in ONE short sentence of romanized Hindi (Latin letters, never Devanagari).',
-    'React to the fact that they are BACK - do not use a generic opening line, and do not repeat what you said last time.',
+    last
+      ? 'React to the fact that they are BACK - do not use a generic opening line, and do not repeat what you said last time.'
+      : 'Open the way YOU would, mid-task, in your own voice - curious, wary, busy, whatever fits you. Not a neutral hello.',
     'No emoji, no asterisks, no stage directions, no English.',
   ].filter(Boolean).join(' ')
 
   const facts = [
-    'This is visit number ' + ((imp && imp.visits || 1) + 1) + '.',
-    mins !== null && mins < 600 ? 'It has been about ' + mins + ' minute(s) since you last spoke.' : '',
+    last ? 'This is visit number ' + ((imp && imp.visits || 1) + 1) + '.' : 'You have never spoken to them before.',
+    last && mins !== null && mins < 600 ? 'It has been about ' + mins + ' minute(s) since you last spoke.' : '',
     imp && imp.note ? 'What you think of them: ' + imp.note : '',
-    'Last time they said: "' + last.p + '"',
-    'and you answered: "' + last.r + '"',
+    last ? 'Last time they said: "' + last.p + '"' : '',
+    last ? 'and you answered: "' + last.r + '"' : '',
     profileLine(),
   ].filter(Boolean).join(' ')
 
