@@ -3,10 +3,11 @@ import { EffectComposer } from '../vendor/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
-import { buildTown, isWalkable, tileToWorld, groundHeight, PLAZA_H } from './town.js'
+import { buildTown, isWalkable, tileToWorld, groundHeight, PLAZA_H, COLS, ROWS, TILE } from './town.js'
+import { createController } from './movement.js'
 import { buildPerson, RESIDENTS } from './people.js'
 import { spawnAmbient, createSoundscape } from './ambient.js'
-import { ask, askCoach, getKey, setKey, forgetAll, learnerState, hasLLM, serverReady } from './conversation.js'
+import { ask, askCoach, getKey, setKey, forgetAll, learnerState, hasLLM, serverReady, getModel, setModel } from './conversation.js'
 import { activeMission, missionFor, completeMission, missionState } from './missions.js'
 import * as tts from './tts.js'
 import { tryReveal, factsHeldBy, knownFacts, resetKnowledge } from './knowledge.js'
@@ -33,8 +34,7 @@ scene.fog = new THREE.Fog(0xc4dcea, 70, 220)
 const camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 500)
 const OFF_ROAM = new THREE.Vector3(0, 9.2, 11.0)   // low three-quarter: you are IN the town
 const OFF_TALK = new THREE.Vector3(1.6, 2.6, 4.0)  // near eye level for conversation
-const camOffset = OFF_ROAM.clone()
-const camLook = new THREE.Vector3()
+// the follow, the spring and the occlusion pull-in all live in movement.js
 
 // ---------------------------------------------------------------------------
 // light — late morning sun, high and warm
@@ -92,8 +92,7 @@ for (const r of RESIDENTS) {
   scene.add(b)
 }
 
-const pos = { x: 20, z: 12 }
-const target = { x: 20, z: 12 }
+const pos = { x: 20, z: 12 }   // player's current TILE — mirrored by movement.js
 const ambient = spawnAmbient(scene, () => [
   [pos.x, pos.z],
   ...RESIDENTS.map(r => r.tile),
@@ -110,33 +109,94 @@ composer.addPass(bloom)
 composer.addPass(new OutputPass())
 composer.setSize(window.innerWidth, window.innerHeight)
 
-// ---------------------------------------------------------------------------
-// movement
-// ---------------------------------------------------------------------------
-let moveT = 1
-const MOVE_TIME = 0.19
-let facing = 0
-
+// ===========================================================================
+// MOVEMENT / CAMERA SECTION — owned by movement.js. Everything between this
+// banner and the "END MOVEMENT" banner is the character controller wiring:
+// input, the continuous controller, and the follow camera. Nothing else.
+// ===========================================================================
 const startP = tileToWorld(pos.x, pos.z)
 player.position.set(startP.x, groundHeight(pos.x, pos.z), startP.z)
 
+const controller = createController({
+  scene, camera, player,
+  town: { isWalkable, tileToWorld, groundHeight, PLAZA_H, COLS, ROWS, TILE },
+  // residents are static furniture as far as walking is concerned: you bump
+  // around them instead of standing inside them
+  obstacles: RESIDENTS.map(r => ({ x: r.group.position.x, z: r.group.position.z, r: 0.34 })),
+  config: { camOffset: OFF_ROAM.toArray() },
+})
+controller.teleportToTile(pos.x, pos.z)
+
 const keys = new Set()
+const input = { x: 0, z: 0, run: false }
+function readInput() {
+  const up = keys.has('w') || keys.has('arrowup')
+  const down = keys.has('s') || keys.has('arrowdown')
+  const left = keys.has('a') || keys.has('arrowleft')
+  const right = keys.has('d') || keys.has('arrowright')
+  input.x = (right ? 1 : 0) - (left ? 1 : 0)
+  input.z = (down ? 1 : 0) - (up ? 1 : 0)   // W walks north, i.e. -Z
+  input.run = keys.has('shift')
+  return input
+}
+
 window.addEventListener('keydown', e => { if (!uiFocused()) keys.add(e.key.toLowerCase()) })
 window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()))
+window.addEventListener('blur', () => keys.clear())
 window.addEventListener('pointerdown', () => sound.start(), { once: false })
 window.addEventListener('keydown', () => sound.start(), { once: true })
 
 function occupied(x, z) {
   return RESIDENTS.some(r => r.tile[0] === x && r.tile[1] === z)
 }
-function tryStep(dx, dz) {
-  facing = Math.atan2(dx, dz)
-  if (moveT < 1 || talking) return
-  const nx = pos.x + dx, nz = pos.z + dz
-  if (!isWalkable(nx, nz) || occupied(nx, nz)) return
-  target.x = nx; target.z = nz
-  moveT = 0
+
+// gait animation driven off the controller's speed output: arms and body bob
+// scale with how fast you are actually moving, so walk and run read apart.
+const talkFocus = new THREE.Vector3()
+const SUN_OFF = new THREE.Vector3(-30, 42, 20)
+function animateLocomotion(dt) {
+  const gait = controller.gait                 // 0 idle · 1 walk · ~1.8 run
+  const body = player.userData.body
+  const arms = player.userData.arms
+  if (gait > 0.04) {
+    const s = Math.sin(controller.stride)
+    const amp = Math.min(1, gait)
+    body.position.y = Math.abs(s) * 0.075 * amp
+    body.rotation.z = s * 0.035 * amp
+    body.rotation.x = Math.min(0.12, gait * 0.06)   // lean into the run
+    arms[0].rotation.x = s * (0.45 + 0.35 * Math.min(1, gait))
+    arms[1].rotation.x = -s * (0.45 + 0.35 * Math.min(1, gait))
+  } else {
+    const k = Math.min(1, dt * 10)
+    body.position.y += (0 - body.position.y) * k
+    body.rotation.z += (0 - body.rotation.z) * k
+    body.rotation.x += (0 - body.rotation.x) * k
+    arms[0].rotation.x += (0 - arms[0].rotation.x) * k
+    arms[1].rotation.x += (0 - arms[1].rotation.x) * k
+  }
 }
+
+function stepMovement(dt) {
+  controller.setFrozen(!!talking)
+  controller.setCameraOffset(talking ? OFF_TALK : OFF_ROAM)
+  if (talking) {
+    talkFocus.copy(player.position).add(talking.group.position).multiplyScalar(0.5)
+    talkFocus.y += 1.0
+    controller.setFocusOverride(talkFocus)
+  } else {
+    controller.setFocusOverride(null)
+  }
+  controller.update(dt, talking ? null : readInput())
+  animateLocomotion(dt)
+  // the rest of the game still thinks in tiles — keep `pos` mirrored
+  pos.x = controller.tileX
+  pos.z = controller.tileZ
+  playerBlob.position.set(player.position.x, player.position.y + 0.03, player.position.z)
+  // sun rides with the focus so shadows stay in the shadow-camera box
+  sun.target.position.copy(controller.focus)
+  sun.position.copy(controller.focus).add(SUN_OFF)
+}
+// ======================= END MOVEMENT / CAMERA SECTION =====================
 
 // ---------------------------------------------------------------------------
 // UI refs
@@ -448,7 +508,6 @@ window.addEventListener('resize', () => {
 // loop
 // ---------------------------------------------------------------------------
 const clock = new THREE.Clock()
-let bob = 0
 let simTime = 0
 const clockEl = el('clock')
 
@@ -456,33 +515,8 @@ function step(dt) {
   simTime += dt
   const t = simTime
 
-  if (!talking) {
-    if (keys.has('w') || keys.has('arrowup')) tryStep(0, -1)
-    else if (keys.has('s') || keys.has('arrowdown')) tryStep(0, 1)
-    else if (keys.has('a') || keys.has('arrowleft')) tryStep(-1, 0)
-    else if (keys.has('d') || keys.has('arrowright')) tryStep(1, 0)
-  }
-
-  if (moveT < 1) {
-    moveT = Math.min(1, moveT + dt / MOVE_TIME)
-    const a = tileToWorld(pos.x, pos.z), b = tileToWorld(target.x, target.z)
-    const ya = groundHeight(pos.x, pos.z), yb = groundHeight(target.x, target.z)
-    player.position.x = a.x + (b.x - a.x) * moveT
-    player.position.z = a.z + (b.z - a.z) * moveT
-    player.position.y = ya + (yb - ya) * moveT
-    bob += dt * 15
-    player.userData.body.position.y = Math.abs(Math.sin(bob)) * 0.07
-    player.userData.body.rotation.z = Math.sin(bob) * 0.03
-    player.userData.arms[0].rotation.x = Math.sin(bob) * 0.5
-    player.userData.arms[1].rotation.x = -Math.sin(bob) * 0.5
-    if (moveT === 1) { pos.x = target.x; pos.z = target.z }
-  } else {
-    player.userData.body.position.y *= 0.85
-    player.userData.arms[0].rotation.x *= 0.8
-    player.userData.arms[1].rotation.x *= 0.8
-  }
-  player.rotation.y += (facing - player.rotation.y) * Math.min(1, dt * 14)
-  playerBlob.position.set(player.position.x, player.position.y + 0.03, player.position.z)
+  // walking, the camera, and the player's gait — see the MOVEMENT section
+  stepMovement(dt)
 
   // residents idle + face player
   RESIDENTS.forEach((r, i) => {
@@ -532,18 +566,6 @@ function step(dt) {
     }
   }
 
-  // camera
-  const wantOff = talking ? OFF_TALK : OFF_ROAM
-  camOffset.lerp(wantOff, 1 - Math.exp(-dt * 3))
-  const focus = talking
-    ? new THREE.Vector3().addVectors(player.position, talking.group.position).multiplyScalar(0.5).add(new THREE.Vector3(0, 1.0, 0))
-    : new THREE.Vector3().copy(player.position).add(new THREE.Vector3(0, 0.8, 0))
-  camLook.lerp(focus, 1 - Math.exp(-dt * 5))
-  camera.position.copy(camLook).add(camOffset)
-  camera.lookAt(camLook)
-  sun.target.position.copy(camLook)
-  sun.position.copy(camLook).add(new THREE.Vector3(-30, 42, 20))
-
   const mins = 10 * 60 + 30 + Math.floor(t * 2)
   clockEl.textContent = `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
 
@@ -576,32 +598,83 @@ window.__test = {
   missionCard: () => missionCard.textContent,
   promptText: () => talkPrompt.classList.contains('hidden') ? null : talkPrompt.textContent,
   toastText: () => toast.classList.contains('hidden') ? null : toast.textContent,
-  // walk the grid with BFS — also proves the town is actually traversable
+  // walk there for real: the controller paths on the grid and then *drives
+  // itself* through the same physics the keyboard uses, so this still proves
+  // the town is traversable — and now also that it is walkable.
   walkTo(tx, tz, maxSteps = 4000) {
-    const key = (x, z) => x + ',' + z
-    const q = [[pos.x, pos.z]]
-    const prev = new Map([[key(pos.x, pos.z), null]])
-    while (q.length) {
-      const [x, z] = q.shift()
-      if (x === tx && z === tz) break
-      for (const [dx, dz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
-        const nx = x + dx, nz = z + dz
-        if (!isWalkable(nx, nz) || occupied(nx, nz)) continue
-        if (prev.has(key(nx, nz))) continue
-        prev.set(key(nx, nz), [x, z])
-        q.push([nx, nz])
-      }
-    }
-    if (!prev.has(key(tx, tz))) return { ok: false, reason: 'unreachable' }
-    const path = []
-    let cur = [tx, tz]
-    while (cur) { path.unshift(cur); cur = prev.get(key(cur[0], cur[1])) }
+    const r = controller.moveToTile(tx, tz)
+    if (!r.ok) return { ok: false, reason: r.reason, at: [pos.x, pos.z] }
     let steps = 0
-    for (let i = 1; i < path.length; i++) {
-      const [nx, nz] = path[i]
-      tryStep(nx - pos.x, nz - pos.z)
-      while (moveT < 1 && steps++ < maxSteps) step(0.05)
+    while (controller.navBusy() && steps++ < maxSteps) step(0.05)
+    return {
+      ok: pos.x === tx && pos.z === tz,
+      state: controller.navState,
+      tiles: r.tiles,
+      steps,
+      at: [pos.x, pos.z],
     }
-    return { ok: pos.x === tx && pos.z === tz, tiles: path.length - 1, at: [pos.x, pos.z] }
   },
+  // continuous-movement probes
+  hold(dir, seconds, run = false, dt = 1 / 60) {
+    const k = { up: 'w', down: 's', left: 'a', right: 'd' }[dir] || dir
+    keys.add(k); if (run) keys.add('shift')
+    for (let t = 0; t < seconds; t += dt) step(dt)
+    keys.delete(k); keys.delete('shift')
+    return { at: [pos.x, pos.z], world: player.position.toArray().map(n => +n.toFixed(3)) }
+  },
+  ctl: controller,
+  playerPos: () => player.position.toArray().map(n => +n.toFixed(3)),
+  camPos: () => camera.position.toArray().map(n => +n.toFixed(3)),
+  speed: () => +controller.speed.toFixed(3),
 }
+
+
+// --- session API spend, polled from the server (which sees every call) -----
+;(function costMeter() {
+  const el = document.getElementById('cost')
+  if (!el) return
+  let last = 0
+  async function poll() {
+    try {
+      const r = await fetch('/api/cost')
+      if (r.ok) {
+        const c = await r.json()
+        el.textContent = '$' + c.usd.toFixed(4)
+        el.title = `session spend — ${c.model}\n` +
+          `LLM: ${c.gemini.calls} calls, ${c.gemini.in} in / ${c.gemini.out} out tokens, $${c.gemini.usd.toFixed(4)}\n` +
+          `voice: ${c.tts.calls} lines (${c.tts.cached} cached), $${c.tts.usd.toFixed(4)}`
+        if (c.usd > last) {
+          el.classList.add('spending')
+          setTimeout(() => el.classList.remove('spending'), 900)
+          last = c.usd
+        }
+      }
+    } catch {}
+    setTimeout(poll, 3000)
+  }
+  poll()
+})()
+
+
+// --- model switch: flash-lite is the default because 3.7-flash costs ~14x
+// and runs ~3x slower for a marginal quality gain. The cost readout next to
+// it makes that tradeoff visible while you play.
+;(function modelSwitch() {
+  const btn = document.getElementById('model')
+  if (!btn) return
+  const LITE = 'gemini-3.5-flash-lite'
+  const BIG = 'gemini-3.7-flash'
+  const label = () => {
+    const m = getModel() || LITE
+    btn.textContent = m === BIG ? '3.7' : 'lite'
+    btn.classList.toggle('on', m === BIG)
+    btn.title = m === BIG
+      ? 'gemini-3.7-flash — richer, ~3s per reply, ~14x the cost. Click for lite.'
+      : 'gemini-3.5-flash-lite — ~0.9s per reply, cheapest. Click for 3.7-flash.'
+  }
+  btn.addEventListener('click', () => {
+    setModel((getModel() || LITE) === BIG ? LITE : BIG)
+    label()
+  })
+  label()
+})()

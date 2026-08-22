@@ -1,9 +1,20 @@
 import * as THREE from 'three'
 import { PAL, mat, rbox, cyl, sph } from './kit.js'
+import {
+  loadCharacterModels, instantiateCharacter, HUMAN_SCALE, DOG_SCALE,
+} from './characters.js'
 
-// One body plan, many people — the 3D version of "one rig, swappable outfits".
-// Camera sits low (three-quarter Dota view) so faces and fronts matter: every
-// head gets real eyes, brows, nose, mouth, ears, and a proper hairstyle.
+// Residents are real rigged, skinned, animated glTF models (Quaternius,
+// CC0 — see game/assets/CREDITS.md). One armature is shared by the whole
+// cast, so eight residents come out of six models: each one is retinted from
+// its own `look` object, given its own scale, and driven by its own mixer.
+//
+// The builders below stay synchronous because main.js and ambient.js call
+// them at module load. Each returns the hand-built primitive villager
+// immediately, then swaps the model in underneath the same THREE.Group once
+// the GLBs arrive — so a failed download, a missing vendor file or a static
+// host with no assets folder degrades to the old look instead of an empty
+// town. buildPersonPrimitive() below is that fallback, unchanged.
 
 // small helpers ---------------------------------------------------------------
 
@@ -186,7 +197,10 @@ function makeHead(look) {
   return head
 }
 
-export function buildPerson(look) {
+// The original hand-built villager. Still the fallback when models are
+// unavailable, and still the thing you see for the first frames while the
+// GLBs are in flight.
+export function buildPersonPrimitive(look) {
   const g = new THREE.Group()
   const s = look.scale !== undefined ? look.scale : 1
   const belly = look.belly !== undefined ? look.belly : 0
@@ -299,9 +313,126 @@ export function buildPerson(look) {
   return g
 }
 
+// --- model-backed builders ---------------------------------------------------
+
+const DEFAULT_MODEL = 'Casual2_Male'   // the player, and anyone with no model
+const DOG_MODEL = 'ShibaInu'
+
+// Chispa keeps the pack's own fur colours — they are already a warm town-dog
+// tan — so this look only needs to exist, not to override anything.
+const DOG_LOOK = {}
+
+const _pending = []
+let _kicked = false
+let _settled = false   // the load finished, one way or the other
+
+function dispose(object) {
+  object.traverse((o) => {
+    // geometries are built per villager; materials come from kit.js's shared
+    // cache and are still in use by the town, so they are never touched
+    if (o.geometry) o.geometry.dispose()
+  })
+}
+
+function upgrade(entry) {
+  const { group, look, kind } = entry
+  const headProxy = new THREE.Object3D()
+  const rec = kind === 'dog'
+    ? instantiateCharacter(DOG_MODEL, DOG_LOOK, {
+      headProxy, tracked: group, walkAt: 3.0, runAt: 6.0,
+    })
+    : instantiateCharacter(look.model || DEFAULT_MODEL, look, {
+      headProxy, tracked: group, headMax: 0.7,
+    })
+  if (!rec) return false
+
+  for (const child of [...group.children]) {
+    group.remove(child)
+    dispose(child)
+  }
+  rec.root.scale.setScalar(kind === 'dog' ? DOG_SCALE : HUMAN_SCALE)
+  group.add(rec.root)
+
+  // Keep the old interface alive. main.js and ambient.js write to .body,
+  // .arms[] and .tail every frame; the mixer owns those joints now, so those
+  // become detached dummies that absorb the writes harmlessly. .head is the
+  // exception — its yaw is read back and applied to the real Head bone.
+  group.userData.head = headProxy
+  group.userData.body = new THREE.Object3D()
+  group.userData.arms = [new THREE.Object3D(), new THREE.Object3D()]
+  group.userData.tail = new THREE.Object3D()
+  group.userData.model = rec.name
+  group.userData.rig = rec.root
+  group.userData.mixer = rec.mixer
+  group.userData.actions = { idle: rec.idle, walk: rec.walk, run: rec.run }
+  group.userData.setMoving = (on) => {
+    rec.forced = (on === null || on === undefined) ? null : (on ? 'walk' : 'idle')
+  }
+  return true
+}
+
+function tryUpgrade(entry) {
+  try { return upgrade(entry) } catch (err) {
+    console.warn('[people] could not upgrade a villager', err)
+    return false
+  }
+}
+
+// Queue a villager for the model swap. Once the load has settled, anything
+// built later is upgraded on the spot instead of waiting for a flush that has
+// already happened — villagers spawned at runtime get models too.
+function enqueue(entry) {
+  if (_settled) { tryUpgrade(entry); return }
+  _pending.push(entry)
+  if (_kicked) return
+  _kicked = true
+  loadCharacterModels()
+    .then(() => {
+      _settled = true
+      let n = 0
+      for (const e of _pending) if (tryUpgrade(e)) n++
+      _pending.length = 0
+      console.info(`[people] ${n} characters upgraded to rigged models`)
+    })
+    .catch((err) => {
+      _settled = true
+      _pending.length = 0
+      console.warn('[people] model load failed — keeping primitives', err)
+    })
+}
+
+function stub(group, kind) {
+  group.userData.model = null
+  group.userData.mixer = null
+  group.userData.actions = { idle: null, walk: null, run: null }
+  group.userData.setMoving = () => {}
+  if (kind === 'dog' && !group.userData.tail) group.userData.tail = new THREE.Object3D()
+  return group
+}
+
+/**
+ * A villager. Returns immediately with the primitive build; the rigged model
+ * replaces its contents in place once loaded. userData.head / .body / .arms
+ * are valid at every point in that lifecycle.
+ */
+export function buildPerson(look) {
+  const g = stub(buildPersonPrimitive(look), 'person')
+  g.userData.look = look
+  enqueue({ group: g, look, kind: 'person' })
+  return g
+}
+
+export { loadCharacterModels }
+
 // --- animals ----------------------------------------------------------------
 
 export function buildDog() {
+  const g = stub(buildDogPrimitive(), 'dog')
+  enqueue({ group: g, look: DOG_LOOK, kind: 'dog' })
+  return g
+}
+
+export function buildDogPrimitive() {
   const g = new THREE.Group()
   const body = new THREE.Group()
   const trunk = rbox(0.32, 0.3, 0.72, 0xb08a5a, 0.1)
@@ -487,7 +618,7 @@ export const RESIDENTS = [
     backstory: 'Born in Pueblo, left at 22 for Manchester with terrible English and a suitcase. Six years washing dishes, then managing the restaurant. Came back when his father got sick; stayed after he recovered. Knows exactly what it feels like to stand in a foreign street unable to say anything — it is why he coaches newcomers for free.',
     goal: 'Wants to open a language café on the beachfront where locals and foreigners actually mix. Is quietly saving for the deposit and scouting locations.',
     relationships: 'Rosa fed him after school as a kid and he still cannot say no to her. Thinks Tomás is full of it but loves him. Respects Doña Carmen and is one of three people she actually likes. Miguel reminds him painfully of his own restless younger self.',
-    look: { skin: 0xc98f66, outfit: 0x6f8144, accent: 0xf2ede2, hair: 0x3a352f, trousers: 0x3f4550, scale: 1.02, curly: true },
+    look: { model: 'Casual_Male', skin: 0xc98f66, outfit: 0x6f8144, accent: 0xf2ede2, hair: 0x3a352f, trousers: 0x3f4550, scale: 1.02, curly: true },
     tile: [19, 11],
     facing: Math.PI / 2,
     opener: 'Hey — you made it in one piece! Deep breath. First things first: food. Pilar runs the fruit stall on the east side. Go buy three bananas — in Hindi. Say: mujhe teen kele chahiye. You can do this.',
@@ -513,7 +644,7 @@ export const RESIDENTS = [
     backstory: 'Third generation on that stall — her grandmother started it selling lemons from a basket. Raised two kids on it alone after her husband left for Valencia with a hairdresser; she says it was the best thing he ever did for her. Her plátanos come from her cousin in the Canaries.',
     goal: 'Wants her daughter to take over the stall someday, but the daughter wants to study engineering in Sevilla — and Pilar is secretly proud of that and torn about it.',
     relationships: 'Best friends with Rosa since school — they tell each other everything. A running feud with Tomás about whose corner of the market gets the shade. Adores Lucía and slips her fruit. Finds Doña Carmen exhausting and hides behind the crates when she approaches.',
-    look: { skin: 0xdca57e, outfit: 0xe8c56a, accent: 0x6f8144, hair: 0x3a2f28, trousers: 0x4a4550, bun: true, scale: 0.99 },
+    look: { model: 'Worker_Female', hideParts: ['Hat'], skin: 0xdca57e, outfit: 0xe8c56a, accent: 0x6f8144, hair: 0x3a2f28, trousers: 0x4a4550, bun: true, scale: 0.99 },
     tile: [28, 11],
     facing: Math.PI / 2,
     opener: 'Namaste namaste! Taaze phal, ekdum taaze! Kya chahiye beta?',
@@ -539,7 +670,7 @@ export const RESIDENTS = [
     backstory: 'Married to Paco the fisherman for thirty years until he died at sea eight years ago; the bakery kept her alive afterwards, and she means that literally. Her bread won a provincial prize in 2019, and the framed certificate hangs behind the counter — she pretends it is nothing and it is everything.',
     goal: 'Her sister Marisol in the next town has not spoken to her since a fight about their mother\'s house two years ago. Rosa wants to fix it and does not know how, and it leaks into her conversations as unsolicited advice about calling your family.',
     relationships: 'Pilar is her best friend and co-conspirator. She half-raised Marco and takes credit for his manners. Doña Carmen was her mother\'s friend and Rosa is the other person Carmen likes. She saves the burnt loaves for Lucía\'s family without ever mentioning it.',
-    look: { skin: 0xe8b48c, outfit: 0xf2ede2, accent: 0xc0392b, hair: 0x5a5260, trousers: 0x5a5260, bun: true, scale: 0.97, belly: 0.35 },
+    look: { model: 'Chef_Female', skin: 0xe8b48c, outfit: 0xf2ede2, accent: 0xc0392b, hair: 0x5a5260, trousers: 0x5a5260, bun: true, scale: 0.97, belly: 0.35 },
     tile: [14, 6],
     facing: 0,
     opener: 'Suprabhat beta! Wahi roz waala doon?',
@@ -565,7 +696,7 @@ export const RESIDENTS = [
     backstory: 'Fourth generation fisherman. Went out on his father\'s boat at nine and never seriously considered anything else. His wife Encarna keeps the accounts and is the only person he never exaggerates to, because she checks. The story about the giant tuna is, incredibly, mostly true — there was a photo, but it was lost when his phone fell in the harbour.',
     goal: 'Wants to buy a second boat so his son can skipper his own instead of leaving for the mainland like everyone else\'s kids. The new harbour fees are eating the savings and it genuinely scares him, which is why he shouts about them.',
     relationships: 'The shade feud with Pilar is fifteen years old and both would be lost without it. Drinks one beer with Miguel after close and lectures him about ambition. Was Paco\'s crewmate — he checks on Rosa without ever calling it that, and buys more bread than one man can eat.',
-    look: { skin: 0xd9a06b, outfit: 0x3f6f9a, accent: 0xe8c56a, hair: 0x2e2a26, trousers: 0x3a3f4a, hat: 0xe8dcc0, scale: 1.06, moustache: true, belly: 0.6 },
+    look: { model: 'Chef_Hat', skin: 0xd9a06b, outfit: 0x3f6f9a, accent: 0xe8c56a, hair: 0x2e2a26, trousers: 0x3a3f4a, hat: 0xe8dcc0, scale: 1.06, moustache: true, belly: 0.6 },
     tile: [28, 14],
     facing: Math.PI / 2,
     opener: 'Arre boss! Ye machhli... itni badi thi, ITNI!',
@@ -591,7 +722,7 @@ export const RESIDENTS = [
     backstory: 'Seventy-nine, widowed twice, outlived both without much comment. Taught primary school in Pueblo for forty years, which means she taught half the town to read, including Marco, Rosa and the mayor — and she reminds them when useful. Her balcony faces the plaza on purpose: her late second husband chose the flat for the view, and she chose it for the surveillance.',
     goal: 'Officially: to get the third-floor neighbours to shut up after midnight. Actually: to still matter — to be the person who knows things, because being informed is the last job nobody can retire you from. A newcomer is the most interesting thing to happen in months, and she intends to be the first to fully decode them.',
     relationships: 'Approves of exactly three people: Rosa, Marco, and the priest, in that order. Considers Pilar too loud and Tomás a fabulist, and is correct on both counts. Lucía is the only person allowed to interrupt her, a privilege Carmen pretends she has not noticed granting.',
-    look: { skin: 0xe3b598, outfit: 0x4a4258, accent: 0x8a9a5b, hair: 0xd8d3cc, trousers: 0x4a4258, bun: true, scale: 0.9, glasses: true },
+    look: { model: 'OldClassy_Female', skin: 0xe3b598, outfit: 0x4a4258, accent: 0x8a9a5b, hair: 0xd8d3cc, trousers: 0x4a4258, bun: true, scale: 0.9, glasses: true },
     tile: [9, 10],
     facing: Math.PI / 2,
     opener: 'Main yahan se sab dekhti hoon, pata hai?',
@@ -617,7 +748,7 @@ export const RESIDENTS = [
     backstory: 'Grew up in Pueblo, did two years of business studies in Málaga, came back for the summer four years ago. The café job was temporary then and is temporary now. Plays right wing for the town futsal team, quite well, which is the one thing he never mentions casually because it actually matters to him.',
     goal: 'The Madrid plan: a friend has a bar there and keeps offering him the assistant manager job. He has almost said yes three times. He tells everyone he is saving for the move; his savings have not moved in a year, and deep down he suspects he does not actually want to go — which is scarier than going.',
     relationships: 'Marco is the only one who calls out the Madrid thing honestly, which Miguel both hates and needs. Half in love with Pilar\'s daughter, a fact the entire town knows except possibly her. Tomás lectures him weekly and Miguel would genuinely miss it. Slips Chispa leftovers, so Lucía has decided he is excellent.',
-    look: { skin: 0xd9a06b, outfit: 0xf2ede2, accent: 0x2b2119, hair: 0x241f1a, trousers: 0x2b2119, scale: 1.0, curly: true },
+    look: { model: 'Suit_Male', skin: 0xd9a06b, outfit: 0xf2ede2, accent: 0x2b2119, hair: 0x241f1a, trousers: 0x2b2119, scale: 1.0, curly: true },
     tile: [13, 13],
     facing: Math.PI / 2,
     opener: 'Chai? Coffee? Kahin bhi baitho, abhi aaya.',
@@ -643,7 +774,7 @@ export const RESIDENTS = [
     backstory: 'Nine years old, born in Pueblo, youngest of three. Found Chispa as a puppy in a box behind the market two summers ago and negotiated keeping her with a determination that broke her parents in a day. Knows every cat, shortcut, and loose paving stone in town. Is at that exact age where every adult is a potential source of fascinating information.',
     goal: 'Current projects: teach Chispa to sit (failing), find out if it snows where the foreigner comes from (pending), and convince her parents she is old enough to take the bus to the next town alone (long-term campaign).',
     relationships: 'Chispa is the centre of the universe. Pilar gives her fruit and Rosa gives her bread ends, and she has both women wrapped around her finger. She is the only person Doña Carmen lets interrupt her, and Lucía has no idea this is remarkable. The foreigner is currently the most interesting thing in her entire life.',
-    look: { skin: 0xe8b48c, outfit: 0xdb6f8f, accent: 0xf2ede2, hair: 0x2e2117, trousers: 0x4a6fa8, scale: 0.62, bun: true },
+    look: { model: 'Casual_Female', skin: 0xe8b48c, outfit: 0xdb6f8f, accent: 0xf2ede2, hair: 0x2e2117, trousers: 0x4a6fa8, scale: 0.62, bun: true },
     tile: [23, 14],
     facing: -Math.PI / 2,
     opener: 'Hello! Tum kahan se ho? Tumhare paas kutta hai? Mere paas hai. Iska naam Chispa hai!',
@@ -669,7 +800,7 @@ export const RESIDENTS = [
     backstory: 'Arrived in Pueblo as a young priest in 1987 for two or three years and simply never left. Half-deaf in the left ear from an artillery accident during military service, a story he tells in nine different versions. Genuinely learned in Roman-era local history; the church tower is his life\'s scholarly work and his retirement plan is a small book about it that he has been finishing for eleven years.',
     goal: 'The bell mechanism sticks on cold mornings and the diocese will not pay for the repair. He is running a quiet, extremely slow fundraising campaign that is mostly him mentioning it sadly to everyone. Also: finish the book. Realistically: mention the book.',
     relationships: 'Doña Carmen is his fiercest critic and most reliable attendee, and their weekly argument after mass is a form of friendship neither would name. He baptised Miguel, Lucía, and Pilar\'s kids. He lets Lucía ring the bell on her birthday, which is illegal by his own rules.',
-    look: { skin: 0xe3b598, outfit: 0x2b2830, accent: 0xf2ede2, hair: 0xd8d3cc, trousers: 0x2b2830, bald: true, scale: 1.0, glasses: true, belly: 0.3 },
+    look: { model: 'OldClassy_Male', hideParts: ['Hair'], slots: { hat: 0x22212a, belt: 0x22212a }, skin: 0xe3b598, outfit: 0x2b2830, accent: 0xf2ede2, hair: 0xd8d3cc, trousers: 0x2b2830, bald: true, scale: 1.0, glasses: true, belly: 0.3 },
     tile: [23, 5],
     facing: Math.PI,
     opener: 'Aao beta, swagat hai. Ghantaghar dekha? San 1712 ka hai...',
@@ -688,12 +819,12 @@ export const RESIDENTS = [
 
 // ambient villagers — no dialogue, they just live here
 export const WANDER_LOOKS = [
-  { skin: 0xdca57e, outfit: 0x8a6f9a, hair: 0x3a2f28, trousers: 0x4a4550, curly: true },
-  { skin: 0xe8b48c, outfit: 0x4a8fc9, hair: 0x241f1a, trousers: 0x3a3f4a, moustache: true },
-  { skin: 0xc98f66, outfit: 0xc0704a, hair: 0x2e2a26, trousers: 0x4a4550, hat: 0xe8dcc0, belly: 0.5 },
-  { skin: 0xe3b598, outfit: 0x6f8144, hair: 0x5a5260, trousers: 0x5a5260, bun: true, glasses: true },
-  { skin: 0xd9a06b, outfit: 0xf2ede2, hair: 0x3a352f, trousers: 0x2b2119, moustache: true, belly: 0.3 },
-  { skin: 0xdca57e, outfit: 0xdb8f4a, hair: 0xd8d3cc, trousers: 0x4a4258, bun: true, scale: 0.92, glasses: true },
-  { skin: 0xe8b48c, outfit: 0x9fc4e8, hair: 0x2e2117, trousers: 0x4a6fa8, scale: 0.6, curly: true },
-  { skin: 0xc98f66, outfit: 0xa63a52, hair: 0x241f1a, trousers: 0x3a3f4a, bald: true, belly: 0.4 },
+  { model: 'Casual_Female', skin: 0xdca57e, outfit: 0x8a6f9a, hair: 0x3a2f28, trousers: 0x4a4550, curly: true },
+  { model: 'Casual2_Male', skin: 0xe8b48c, outfit: 0x4a8fc9, hair: 0x241f1a, trousers: 0x3a3f4a, moustache: true },
+  { model: 'Chef_Hat', skin: 0xc98f66, outfit: 0xc0704a, hair: 0x2e2a26, trousers: 0x4a4550, hat: 0xe8dcc0, belly: 0.5 },
+  { model: 'OldClassy_Female', skin: 0xe3b598, outfit: 0x6f8144, hair: 0x5a5260, trousers: 0x5a5260, bun: true, glasses: true },
+  { model: 'Casual_Male', skin: 0xd9a06b, outfit: 0xf2ede2, hair: 0x3a352f, trousers: 0x2b2119, moustache: true, belly: 0.3 },
+  { model: 'Worker_Female', skin: 0xdca57e, outfit: 0xdb8f4a, hair: 0xd8d3cc, trousers: 0x4a4258, bun: true, scale: 0.92, glasses: true },
+  { model: 'Casual_Female', skin: 0xe8b48c, outfit: 0x9fc4e8, hair: 0x2e2117, trousers: 0x4a6fa8, scale: 0.6, curly: true },
+  { model: 'Casual_Bald', skin: 0xc98f66, outfit: 0xa63a52, hair: 0x241f1a, trousers: 0x3a3f4a, bald: true, belly: 0.4 },
 ]

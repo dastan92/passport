@@ -1,11 +1,111 @@
 {
-  "_comment": "Optional per-resident Fish Audio voice ids from fish.audio's voice catalog. Residents missing here use FISH_VOICE_ID from .env, or Fish's default voice. Pick Spanish voices for everyone except coach.",
-  "coach": "",
-  "rosa": "",
-  "pilar": "",
-  "tomas": "",
-  "carmen": "",
-  "miguel": "",
-  "lucia": "",
-  "padre": ""
+  "_comment": [
+    "Per-resident Fish Audio voices. Read by serve.py; keys starting with '_'",
+    "are documentation and are ignored. Each entry is {id, speed, volume} —",
+    "'id' is the Fish reference_id (fish.audio/m/<id>), 'speed' is a prosody",
+    "multiplier (>1 faster, <1 slower), 'volume' is a dB offset.",
+    "",
+    "HOW THESE WERE CHOSEN (2026-08-22). The catalogue was queried via",
+    "GET https://api.fish.audio/model?language=hi — there are ~968 public",
+    "community voices whose reference audio is native Hindi. Candidates were",
+    "shortlisted on Fish's own tags (gender/age/timbre) plus its",
+    "quality.quality_passed flag, then scored objectively: each candidate",
+    "spoke the same ROMANIZED Hindi line, the audio was fed back through",
+    "Fish ASR (POST /v1/asr), and the transcript was compared against the",
+    "known Devanagari ground truth. Score = character similarity; the",
+    "winners are recorded in '_sim' below. Re-run that round trip before",
+    "swapping any voice — tags alone are not a reliable guide.",
+    "",
+    "WHY THIS WORKS AT ALL: the game sends Latin-script Hindi ('mujhe teen",
+    "kele chahiye'), never Devanagari. Model s2.1-pro auto-detects language",
+    "from the text and reads romanized Hindi AS Hindi — verified, ASR",
+    "returns language_code 'hi' for every voice below. Do not downgrade to",
+    "s1/s2 without re-running the check.",
+    "",
+    "KNOWN LIMITATIONS — read before 'fixing' these:",
+    "1. lucia is 9 years old and there is NO native-Hindi child voice in the",
+    "   catalogue (only 2 models are tagged 'child' and both are English).",
+    "   The English child voices were tested and they FAIL on Hindi: one",
+    "   scored 0.712, and 'Young Female Girl Child' scored 0.984 on one line",
+    "   then emitted fluent FINNISH on the next. So lucia uses a native",
+    "   Hindi young-female voice sped up slightly. She reads as a bright",
+    "   young woman, not a child. This is the honest ceiling today.",
+    "2. Fish prosody accepts only 'speed' and 'volume'. A 'pitch' field is",
+    "   accepted but has no measurable effect (tested: output stayed inside",
+    "   the run-to-run noise band), so pitch cannot be used to age voices",
+    "   up or down. Character separation comes from timbre + speed only.",
+    "3. These are community-uploaded models. They can be deleted or taken",
+    "   down by their authors; serve.py logs a clear error and falls back to",
+    "   the default voice if an id stops resolving.",
+    "4. Deliberately avoided: clones of real public figures (politicians,",
+    "   actors, cricketers) and franchise cartoon characters, both of which",
+    "   are plentiful in this catalogue and neither of which belongs in a",
+    "   shipped game."
+  ],
+
+  "coach": {
+    "id": "fbac16744ffa49a9a51c29b1bf19242a",
+    "_title": "History Voice",
+    "_why": "Marco speaks ENGLISH, not Hindi. Male/middle-aged, tagged warm+calm+gentle+measured — the coach read. 51.8k uses.",
+    "_lang": "en",
+    "_sim": 0.989,
+    "speed": 0.98
+  },
+  "rosa": {
+    "id": "0e5a0d4d5aa849bda91660a52ae23858",
+    "_title": "मधुर हिंदी आवाज़ (sweet Hindi voice)",
+    "_why": "Female 58, warm. Native hi, quality_passed, tagged warm+smooth+calm+friendly. Best-scoring warm female.",
+    "_lang": "hi",
+    "_sim": 0.954,
+    "speed": 0.96
+  },
+  "pilar": {
+    "id": "06a4dfe12d094de39b9451e8670b85b9",
+    "_title": "Mere",
+    "_why": "Female 41, quick and bright. Native hi, quality_passed, tagged energetic+expressive+cheerful. Top Hindi score of the female candidates.",
+    "_lang": "hi",
+    "_sim": 0.984,
+    "speed": 1.08
+  },
+  "tomas": {
+    "id": "f85415dc004a4d8c9d5172e8d470a473",
+    "_title": "दमदार पुरुष (powerful male)",
+    "_why": "Male 44, loud and low. Native hi, tagged deep+low+energetic+authoritative. Volume lifted to make him carry.",
+    "_lang": "hi",
+    "_sim": 0.984,
+    "speed": 1.02,
+    "volume": 3
+  },
+  "carmen": {
+    "id": "31abdc113c4048f0a6e131eccec54782",
+    "_title": "Agrawal Maam",
+    "_why": "Female 79. One of only 21 native-Hindi voices tagged female+old; tagged soft+warm+calm+relaxed. Slowed for age.",
+    "_lang": "hi",
+    "_sim": 0.952,
+    "speed": 0.86
+  },
+  "miguel": {
+    "id": "b60a290a2a09418e852ced587ccd202b",
+    "_title": "युवा पुरुष (young male)",
+    "_why": "Male 27, laid-back. Native hi, quality_passed, tagged smooth+calm+friendly+conversational.",
+    "_lang": "hi",
+    "_sim": 0.984,
+    "speed": 0.97
+  },
+  "lucia": {
+    "id": "4d7609058bd34213b1378b29efbde1f1",
+    "_title": "Girl hindi",
+    "_why": "Girl, 9 — SEE LIMITATION 1. Best available compromise: native Hindi, tagged female+young+energetic+enthusiastic, 2.3k uses, scored 0.976-0.984 across two lines. Sped up for childlike energy, but this is a young woman's timbre.",
+    "_lang": "hi",
+    "_sim": 0.976,
+    "speed": 1.12
+  },
+  "padre": {
+    "id": "65d76b8dc9be4ac78bbf77a93f2227b9",
+    "_title": "बुजुर्ग प्रेरणा (elderly inspiration)",
+    "_why": "Male 66, slow and gentle. Native hi, quality_passed, tagged old+calm+measured+low. Slowed hard for the unhurried priest read.",
+    "_lang": "hi",
+    "_sim": 0.954,
+    "speed": 0.82
+  }
 }

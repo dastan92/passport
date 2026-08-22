@@ -1,7 +1,17 @@
 // ---------------------------------------------------------------------------
-// Voices. Browser SpeechSynthesis for now — free, instant, and every OS ships
-// Spanish voices. Each resident gets their own pitch/rate so Rosa doesn't
-// sound like Tomás. Gemini TTS is the upgrade path; this is the tier below it.
+// Voices. Two tiers:
+//
+//   1. Fish Audio via the dev server's /tts proxy — preferred whenever it is
+//      reachable. Each resident maps to a hand-picked native-Hindi voice in
+//      ../../fish_voices.json (see that file for how they were chosen and
+//      what the limitations are).
+//   2. Browser SpeechSynthesis — the GitHub Pages / no-key fallback. Free and
+//      instant, but the OS may ship no Hindi voice at all, so we degrade to
+//      any Indic voice and finally to the default with a hi-IN lang hint.
+//
+// The residents speak ROMANIZED Hindi ("mujhe teen kele chahiye"). Fish's
+// s2.1-pro reads that as Hindi; browser engines vary, and a hi-IN voice
+// handles it far better than an en-* one.
 // ---------------------------------------------------------------------------
 
 let voices = []
@@ -19,19 +29,30 @@ if (window.speechSynthesis) {
   window.speechSynthesis.onvoiceschanged = loadVoices
 }
 
-// Best available Hindi voices. Text is romanized Hindi; hi-IN voices read it
-// far better than en-* voices do.
-function spanishVoices() { // legacy name: "target-language voices"
+// Best available Hindi voices, in descending order of preference:
+//   hi-IN proper  ->  any other Indic-language voice (en-IN included, since
+//   an Indian-English voice pronounces romanized Hindi far closer than a
+//   US/UK one)  ->  nothing, and we let the engine guess from u.lang.
+function hindiVoices() {
   if (!ready) loadVoices()
-  return voices.filter(v => /^hi(-|_)?/i.test(v.lang))
+  const hi = voices.filter(v => /^hi(-|_)/i.test(v.lang) || /^hi$/i.test(v.lang))
+  if (hi.length) return hi
+  const indic = voices.filter(v => /(-|_)IN$/i.test(v.lang) ||
+    /^(bn|gu|kn|ml|mr|pa|ta|te|ur)(-|_|$)/i.test(v.lang))
+  return indic
 }
 
 export function voiceReport() {
   if (!ready) loadVoices()
+  const picked = hindiVoices()
   return {
     supported: !!window.speechSynthesis,
     total: voices.length,
-    hindi: spanishVoices().map(v => `${v.name} (${v.lang})`),
+    usingFish: fishAvailable === true,
+    // true hi-* voices, versus the Indic near-misses we settle for
+    hindi: voices.filter(v => /^hi(-|_|$)/i.test(v.lang))
+      .map(v => `${v.name} (${v.lang})`),
+    fallbackPool: picked.map(v => `${v.name} (${v.lang})`),
   }
 }
 
@@ -50,14 +71,22 @@ const CHARACTER = {
 // --- Fish Audio via the dev server's /tts proxy ------------------------------
 // Probed once at startup; when absent (GitHub Pages, no key) we use browser
 // voices. Same graceful-degradation shape as dota-coach.
+//
+// The probe is kept as a promise, not just a flag: the first line is often
+// spoken before the fetch resolves, and reading the not-yet-set flag used to
+// silently downgrade that line to a browser voice.
 let fishAvailable = null
-async function probeFish() {
-  if (fishAvailable !== null) return fishAvailable
-  try {
-    const res = await fetch('/tts/status')
-    fishAvailable = res.ok && (await res.json()).fish === true
-  } catch { fishAvailable = false }
-  return fishAvailable
+let fishProbe = null
+function probeFish() {
+  if (fishProbe) return fishProbe
+  fishProbe = (async () => {
+    try {
+      const res = await fetch('/tts/status')
+      fishAvailable = res.ok && (await res.json()).fish === true
+    } catch { fishAvailable = false }
+    return fishAvailable
+  })()
+  return fishProbe
 }
 probeFish()
 
@@ -86,16 +115,27 @@ async function speakFish(text, residentId, onDone) {
 
 let current = null
 
+// Guards against an out-of-order fallback: if speak() is called again while
+// a Fish request is in flight, the stale request must not start a browser
+// utterance on top of the new line.
+let speakToken = 0
+
 export function speak(text, residentId, onDone) {
   if (!enabled || !text) { onDone && onDone(); return null }
   stop()
-  if (fishAvailable) {
-    speakFish(text, residentId, onDone).then(ok => {
-      if (!ok) speakBrowser(text, residentId, onDone)
+  // Known-good: go straight to Fish, no await, so playback starts as early
+  // as possible. Known-bad: browser, same. Only the undecided first call
+  // waits on the probe.
+  if (fishAvailable === false) return speakBrowser(text, residentId, onDone)
+  const token = ++speakToken
+  probeFish().then(ok => {
+    if (token !== speakToken) return   // superseded by a newer line
+    if (!ok) { speakBrowser(text, residentId, onDone); return }
+    speakFish(text, residentId, onDone).then(played => {
+      if (!played && token === speakToken) speakBrowser(text, residentId, onDone)
     })
-    return null
-  }
-  return speakBrowser(text, residentId, onDone)
+  })
+  return null
 }
 
 function speakBrowser(text, residentId, onDone) {
@@ -108,8 +148,10 @@ function speakBrowser(text, residentId, onDone) {
     if (en.length) u.voice = en[Math.min(ch.pick, en.length - 1)]
     u.lang = 'en-GB'
   } else {
-    const es = spanishVoices()
-    if (es.length) u.voice = es[ch.pick % es.length]
+    const hi = hindiVoices()
+    if (hi.length) u.voice = hi[ch.pick % hi.length]
+    // No Hindi voice installed: leave u.voice unset and let the engine pick
+    // from the lang hint rather than forcing an en-US voice onto Hindi text.
     u.lang = u.voice ? u.voice.lang : 'hi-IN'
   }
   u.pitch = ch.pitch

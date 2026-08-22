@@ -44,7 +44,10 @@ export const PAL = {
 
 const _mats = new Map()
 export function mat(color, opts = {}) {
-  const key = color + '|' + (opts.rough ?? 0.85) + '|' + (opts.metal ?? 0)
+  // NOTE: flat MUST be in the cache key. It was not, so whichever caller asked
+// for a colour first won, and every later flatShading request was silently
+// dropped — flat-shaded roofs and foliage were rendering smooth.
+const key = color + '|' + (opts.rough ?? 0.85) + '|' + (opts.metal ?? 0) + '|' + (opts.flat ? 1 : 0)
   if (!_mats.has(key)) {
     _mats.set(key, new THREE.MeshStandardMaterial({
       color,

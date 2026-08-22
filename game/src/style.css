@@ -305,3 +305,10 @@ body.coach-open #toast { left: calc(50% - 10.5rem); }
   letter-spacing: 0.06em; color: rgba(43, 33, 25, 0.4);
   pointer-events: none;
 }
+
+#cost {
+  font-variant-numeric: tabular-nums;
+  color: rgba(43, 33, 25, 0.55);
+  cursor: help;
+}
+#cost.spending { color: var(--accent-deep); }
