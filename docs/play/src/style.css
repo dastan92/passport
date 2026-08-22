@@ -1,0 +1,57 @@
+:root {
+  --plaster: #f6efe3;
+  --ink: #2a2118;
+  --shadow-blue: #2b3a67;
+  --accent: #2450a4;
+  --sub-bg: rgba(20, 16, 12, 0.72);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #e8d9bf; }
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+#vignette {
+  position: fixed; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 50% 45%, transparent 60%, rgba(43, 42, 80, 0.28) 100%);
+}
+
+#hud {
+  position: fixed; top: 1.1rem; left: 1.4rem; right: 1.4rem;
+  display: flex; justify-content: space-between; pointer-events: none;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.72rem; letter-spacing: 0.14em; color: rgba(42, 33, 24, 0.85);
+  text-shadow: 0 1px 0 rgba(255,255,255,0.35);
+}
+
+#talk-prompt {
+  position: fixed; bottom: 7.5rem; left: 50%; transform: translateX(-50%);
+  font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem;
+  letter-spacing: 0.06em; color: #fff;
+  background: var(--sub-bg); padding: 0.5rem 1rem; border-radius: 999px;
+  backdrop-filter: blur(4px);
+}
+#talk-prompt kbd {
+  display: inline-block; background: #fff; color: var(--ink);
+  border-radius: 4px; padding: 0 0.4em; margin-right: 0.5em; font-weight: bold;
+}
+
+#subtitles {
+  position: fixed; bottom: 3.2rem; left: 50%; transform: translateX(-50%);
+  max-width: 34rem; width: calc(100% - 3rem); text-align: center;
+  font-family: Charter, Georgia, serif;
+}
+#speaker {
+  font-family: ui-monospace, Consolas, monospace; font-size: 0.68rem;
+  letter-spacing: 0.16em; color: #ffd9a0; margin-bottom: 0.35rem;
+}
+#line {
+  display: inline-block; background: var(--sub-bg); color: #fdf8ef;
+  font-size: 1.15rem; font-style: italic; line-height: 1.45;
+  padding: 0.55rem 1.1rem; border-radius: 8px; backdrop-filter: blur(4px);
+}
+
+#controls-hint {
+  position: fixed; bottom: 1.1rem; left: 50%; transform: translateX(-50%);
+  font-family: ui-monospace, Consolas, monospace; font-size: 0.68rem;
+  letter-spacing: 0.1em; color: rgba(42, 33, 24, 0.6);
+}
+.hidden { display: none !important; }
