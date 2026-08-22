@@ -300,8 +300,9 @@ def synthesize(text, resident):
     # A rejected reference_id is a config error, not a network blip: say so
     # loudly on the console, remember it, and retry once on the default voice
     # so the player still hears the line.
-    if err and voice and ("400" in err or "402" in err or "404" in err
-                          or "422" in err):
+    # 402 is an account-level "out of credit" — transient, and NOT a property of
+    # this voice. Blacklisting on it permanently disabled a perfectly good id.
+    if err and voice and ("400" in err or "404" in err or "422" in err):
         print(f"  ! fish rejected voice {voice!r} for resident "
               f"{resident or '(none)'} -> {err}")
         print(f"    check fish_voices.json; falling back to the default voice")
@@ -447,7 +448,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             SPEND["tts"]["calls"] += 1
             if source == "cache":
                 SPEND["tts"]["cached"] += 1
-            else:
+            elif source == "fish":
+                # Only Fish bills per UTF-8 byte. Gemini already billed itself
+                # from reported tokens inside gemini_tts(); charging here too
+                # counted every Gemini line twice.
                 nbytes = len(text.encode("utf-8"))
                 SPEND["tts"]["bytes"] += nbytes
                 SPEND["tts"]["usd"] += nbytes * FISH_USD_PER_MBYTE / 1_000_000

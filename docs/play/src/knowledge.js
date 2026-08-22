@@ -16,7 +16,7 @@ export const FACTS = [
   {
     id: 'lucia_church_steps',
     holder: 'lucia',
-    topic: /chispa|kutta|kutte|kutiya|dog|doggy|laal|lal|red|cheez|thing|chhupa|chupa|khazana|treasure|hide|hidden|kahan|kaha|kidhar/i,
+    topic: /chispa|\bkutta\b|kutte|kutiya|\bdog\b|doggy|\blaal\b|\blal\b|\bred\b|cheez|thing|chhupa|chupa|khazana|treasure|hide|hidden|\bkahan\b|\bkaha\b|kidhar/i,
     requires: ['carmen_dog_beach'],
     text: 'Chispa na, apne khazane church ki seedhiyon ke paas chhupata hai! Lekin kal Padre ne wahan kuch uthaya tha — laal wala kuch. Padre ke paas hoga!',
     textEn: 'Chispa hides his treasures near the church steps! But yesterday Padre picked something up there — something red. Padre must have it!',
@@ -25,7 +25,7 @@ export const FACTS = [
   {
     id: 'padre_has_passport',
     holder: 'padre',
-    topic: /passport|laal|lal|red|kitab|book|mila|mili|found|seedhi|seedhiyon|steps|chispa|kutta|dog|mera|wapas|vapas|de dijiye|de do|dedo|return/i,
+    topic: /passport|\blaal\b|\blal\b|\bred\b|kitab|seedhi|seedhiyon|steps|chispa|\bkutta\b|\bdog\b|wapas|vapas|de dijiye|de do|dedo|return|mera passport|meri kitab/i,
     requires: ['lucia_church_steps'],
     text: 'Haan beta, laal passport mere paas hi hai. Seedhiyon par mila tha, mitti mein. Maine socha, malik zaroor aayega. Pehle baitho — ghanti ke tower ki ek kahani suno, phir le jaana.',
     textEn: 'Yes child, the red passport is with me. I found it on the steps, in the dirt. I thought the owner would surely come. First sit — hear one story about the bell tower, then take it.',

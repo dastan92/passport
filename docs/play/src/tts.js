@@ -81,8 +81,10 @@ function probeFish() {
   if (fishProbe) return fishProbe
   fishProbe = (async () => {
     try {
-      const res = await fetch('/tts/status')
-      fishAvailable = res.ok && (await res.json()).fish === true
+      // Ask whether the SERVER can synthesize at all — it may be Gemini-only.
+      const res = await fetch('/api/status')
+      const j = res.ok ? await res.json() : null
+      fishAvailable = !!(j && (j.gemini || j.fish))
     } catch { fishAvailable = false }
     return fishAvailable
   })()
@@ -91,7 +93,9 @@ function probeFish() {
 probeFish()
 
 let currentAudio = null
+let speakGen = 0            // bumped by stop(): invalidates in-flight requests
 async function speakFish(text, residentId, onDone) {
+  const gen = speakGen
   try {
     const res = await fetch('/tts', {
       method: 'POST',
@@ -99,6 +103,8 @@ async function speakFish(text, residentId, onDone) {
       body: JSON.stringify({ text, resident: residentId }),
     })
     if (!res.ok) return false
+    // stop()/mute/a newer line arrived while the network call was outstanding
+    if (gen !== speakGen || !enabled) { onDone && onDone(); return true }
     const blob = await res.blob()
     if (currentAudio) { currentAudio.pause(); currentAudio = null }
     const audio = new Audio(URL.createObjectURL(blob))
@@ -169,6 +175,7 @@ function speakBrowser(text, residentId, onDone) {
 }
 
 export function stop() {
+  speakGen++
   if (window.speechSynthesis && window.speechSynthesis.speaking) {
     window.speechSynthesis.cancel()
   }

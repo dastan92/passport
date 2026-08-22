@@ -418,7 +418,10 @@ export function createController(opts) {
     if (!path) return false
     const n = path.length / 2
     const gx = path[(n - 1) * 2], gz = path[(n - 1) * 2 + 1]
-    if (Math.hypot(gx - position.x, gz - position.z) < arriveRadius(gx, gz)) {
+    // Standing on the goal tile IS arrival — body avoidance holds the player
+    // in an orbit around a resident that the radius test can never satisfy.
+    if (Math.hypot(gx - position.x, gz - position.z) < arriveRadius(gx, gz) ||
+        (tileX(position.x) === tileX(gx) && tileZ(position.z) === tileZ(gz))) {
       path = null; navState = 'arrived'; return false
     }
     const r = cfg.radius + 0.06
@@ -484,8 +487,12 @@ export function createController(opts) {
       if (into < 0) {
         velocity.x -= h.nx * into
         velocity.z -= h.nz * into
-        velocity.x *= cfg.slideFriction
-        velocity.z *= cfg.slideFriction
+        // Framerate-independent: express the per-60Hz-frame coefficient as a
+        // continuous decay over h seconds. A raw multiply here made wall
+        // sliding twice as slow on a 144Hz display.
+        const slide = Math.pow(cfg.slideFriction, dt * 60)
+        velocity.x *= slide
+        velocity.z *= slide
       }
       // A wall you walk into head-on stops you dead, which is right. A PERSON
       // is round: coming in dead-on should roll you around them, not stall you

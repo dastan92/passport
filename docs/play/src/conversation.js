@@ -252,8 +252,11 @@ const EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{20E3}]/gu
 const NAME_BADGE = /^\s*(marco|rosa|pilar|tom[aá]s|do[nñ]a carmen|carmen|miguel|luc[ií]a|padre(?: antonio)?|antonio)\s*:\s*/i
 
 function sanitise(text, { sentences = 3, maxChars = 260, stage = true } = {}) {
-  text = String(text || '').replace(/[\u0900-\u097F]+/g, '').replace(/\s{2,}/g, ' ')
+  // Transliterate FIRST. An earlier version stripped Devanagari here, which
+  // made romanize() dead code and silently deleted the Hindi from mixed
+  // replies. Strip only what survives transliteration.
   let s = romanize(String(text || ''))
+  s = s.replace(/[\u0900-\u097F]+/g, '').replace(/\s{2,}/g, ' ')
   s = s.replace(/```[\s\S]*?```/g, ' ')
   if (stage) s = s.replace(/\([^)]*\)|\[[^\]]*\]/g, ' ')  // stage directions / glosses
   s = s.replace(/\*+([^*]*)\*+/g, '$1')           // *shrugs*, **bold**
@@ -649,7 +652,15 @@ function scriptedReply(r, text, mission) {
 // the two entry points
 // ---------------------------------------------------------------------------
 
+let askInFlight = false
 export async function ask(r, text, mission, extra) {
+  if (askInFlight) return { reply: '', source: 'busy' }
+  askInFlight = true
+  try { return await _ask(r, text, mission, extra) }
+  finally { askInFlight = false }
+}
+
+async function _ask(r, text, mission, extra) {
   noteProduction(text)
   known = { ...profile }   // what the town knew before they opened their mouth
   noteProfile(text)
