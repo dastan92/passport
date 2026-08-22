@@ -7,8 +7,8 @@ import * as THREE from 'three'
 // longer snaps to them. This module turns key input into velocity, resolves
 // that velocity against the grid as CIRCLE-vs-TILE collision with wall
 // sliding, follows the ground height smoothly (the plaza is a raised step, not
-// a cliff), and drives a spring-damped three-quarter follow camera that pulls
-// in when a building gets between it and the player.
+// a cliff), and drives a spring-damped three-quarter follow camera that leads
+// the direction of travel and refuses to sit inside a building.
 //
 //   const ctl = createController({ scene, camera, player, town })
 //   ctl.update(dt, { x, z, run })     // x/z are WORLD axes, -1..1
@@ -35,10 +35,18 @@ export const MOVE_CONFIG = {
   camOffset: [0, 9.2, 11.0],
   camFocusY: 0.95,
   camOmega: 8.5,         // spring rate of the focus point
-  camLookAhead: 2.1,     // how far ahead of a running player the camera leads
+  // How far ahead of a running player the camera leads. The focus spring lags
+  // a moving target by ~2v/omega (1.7 units at a full run), so the net lead on
+  // screen is this minus that — aim high.
+  camLookAhead: 3.0,
   camLookTau: 0.30,      // smoothing of that lead
-  camClearFloor: 0.72,   // how far in we will pull to WIN a clear sightline
-  camMinScale: 0.34,     // how far in we will pull to stay out of a wall
+  // How far in we will pull to WIN a clear sightline. 1 = never; we measured
+  // this. At the roam angle (40 deg over 11 units) a five-tile-deep block is
+  // simply opaque: over 709 walkable tiles, chasing a clear line moved the
+  // camera on 53 tiles and gained the player's silhouette on exactly 1 (and
+  // lost 2 to street props). Lower it only if the buildings get shorter.
+  camClearFloor: 1,
+  camMinScale: 0.34,     // how far in we WILL pull to stay out of a wall
   camRise: 0.18,         // the camera climbs as it pulls in, so it clears roofs
   camRoofClear: 0.5,     // sightline / camera must clear a roof by this much
   camLiftMax: 3.5,       // cap on the last-resort climb over a roof
@@ -64,7 +72,7 @@ const _v2 = new THREE.Vector3()
 const _v3 = new THREE.Vector3()
 const _box = new THREE.Box3()
 const _size = new THREE.Vector3()
-const _hit = { x: 0, z: 0, nx: 0, nz: 0, hit: false }
+const _hit = { x: 0, z: 0, nx: 0, nz: 0, bx: 0, bz: 0, hit: false, body: false }
 
 function damp(rate, dt) { return 1 - Math.exp(-rate * dt) }
 
@@ -154,6 +162,7 @@ export function createController(opts) {
   // Writes into _hit: final x/z plus the accumulated (normalised) push normal.
   function resolve(x, z, r) {
     let nx = 0, nz = 0, hit = false
+    let bnx = 0, bnz = 0, body = false
     for (let pass = 0; pass < 3; pass++) {
       let moved = false
       const cx0 = tileX(x - r), cx1 = tileX(x + r)
@@ -196,13 +205,17 @@ export function createController(opts) {
         const push = need - d
         x += dx * push; z += dz * push
         nx += dx; nz += dz; hit = true; moved = true
+        bnx += dx; bnz += dz; body = true
       }
       if (!moved) break
     }
     const nl = Math.hypot(nx, nz)
-    _hit.x = x; _hit.z = z; _hit.hit = hit
+    const bl = Math.hypot(bnx, bnz)
+    _hit.x = x; _hit.z = z; _hit.hit = hit; _hit.body = body
     _hit.nx = nl > 1e-6 ? nx / nl : 0
     _hit.nz = nl > 1e-6 ? nz / nl : 0
+    _hit.bx = bl > 1e-6 ? bnx / bl : 0
+    _hit.bz = bl > 1e-6 ? bnz / bl : 0
     return _hit
   }
 
@@ -460,8 +473,9 @@ export function createController(opts) {
     }
 
     // --- move + collide ----------------------------------------------------
-    let nx = position.x + velocity.x * dt
-    let nz = position.z + velocity.z * dt
+    const vx0 = velocity.x, vz0 = velocity.z
+    const nx = position.x + velocity.x * dt
+    const nz = position.z + velocity.z * dt
     const h = resolve(nx, nz, cfg.radius)
     touchedWall = h.hit
     if (h.hit) {
@@ -472,6 +486,21 @@ export function createController(opts) {
         velocity.z -= h.nz * into
         velocity.x *= cfg.slideFriction
         velocity.z *= cfg.slideFriction
+      }
+      // A wall you walk into head-on stops you dead, which is right. A PERSON
+      // is round: coming in dead-on should roll you around them, not stall you
+      // against their sternum. Nudge along the tangent, toward the free side.
+      if (h.body) {
+        const in0 = Math.hypot(vx0, vz0)
+        const rem = Math.hypot(velocity.x, velocity.z)
+        if (in0 > 0.5 && rem < in0 * 0.3) {
+          const tx = -h.bz, tz = h.bx
+          let sgn = (vx0 * tx + vz0 * tz) >= 0 ? 1 : -1
+          if (tileOverlap(h.x + tx * sgn * 0.9, h.z + tz * sgn * 0.9, cfg.radius) &&
+              !tileOverlap(h.x - tx * sgn * 0.9, h.z - tz * sgn * 0.9, cfg.radius)) sgn = -sgn
+          velocity.x += tx * sgn * in0 * 0.6
+          velocity.z += tz * sgn * in0 * 0.6
+        }
       }
     }
     position.x = h.x
@@ -581,12 +610,14 @@ export function createController(opts) {
 
   function solveScale() {
     const n = cfg.camSteps
-    for (let i = 0; i < n; i++) {          // tier A — buy a clear line, cheaply
-      const s = 1 - (1 - cfg.camClearFloor) * (i / (n - 1))
-      camAt(s, camWant)
-      if (sightClear(camWant.x, camWant.y, camWant.z)) return s
+    if (cfg.camClearFloor < 1) {           // tier A — buy a clear line, cheaply
+      for (let i = 0; i < n; i++) {
+        const s = 1 - (1 - cfg.camClearFloor) * (i / (n - 1))
+        camAt(s, camWant)
+        if (sightClear(camWant.x, camWant.y, camWant.z)) return s
+      }
     }
-    for (let i = 0; i < n; i++) {          // tier B — at least stay out of walls
+    for (let i = 0; i < n; i++) {          // tier B — never sit inside a wall
       const s = 1 - (1 - cfg.camMinScale) * (i / (n - 1))
       camAt(s, camWant)
       const h = roofAt(camWant.x, camWant.z)
@@ -656,7 +687,8 @@ export function createController(opts) {
     refreshOccluders,
     get occluderCount() { return occluders.length },
     debugOccluders: () => occluders,
-    get camPullIn() { return camScale },   // 1 = free, <1 = pulled in by a wall
+    get camScale() { return camScale },    // 1 = free, <1 = pulled in by a wall
+    get camLift() { return camLift },      // extra height to clear a roofline
     moveToTile,
     stopNav,
     get navState() { return navState },

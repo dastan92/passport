@@ -1,0 +1,110 @@
+[
+ {
+  "id": "b9c3100fb9de40729abd21033803035f",
+  "title": "vijay thalapathy",
+  "uses": 4426,
+  "langs": [
+   "hi"
+  ],
+  "hi": 0.732,
+  "en": 1.0,
+  "avg": 0.839,
+  "heard": "Okay, listen. Go to Pilar and say, \"Mujhe ting ke liye chahiye.\" You can do this."
+ },
+ {
+  "id": "576031ec655a4b628d2c4b0afe11a895",
+  "title": "Mad scientist ",
+  "uses": 7034,
+  "langs": [
+   "hi"
+  ],
+  "hi": 0.727,
+  "en": 0.974,
+  "avg": 0.826,
+  "heard": "Okay, listen. Go to pillar and say, \"Majay, three ke liye chahiye.\" You can do this."
+ },
+ {
+  "id": "8d2c35761b3144bebf485f4a144be789",
+  "title": "Kolhapuri DJ Voice ",
+  "uses": 2886,
+  "langs": [
+   "hi"
+  ],
+  "hi": 0.429,
+  "en": 0.974,
+  "avg": 0.647,
+  "heard": "Okay, listen. Go to pillar and say, \"I need three kales.\" You can do this."
+ },
+ {
+  "id": "ea7cdc74aeae4b608be27fdc37fdcb05",
+  "title": "Amitabh Bachchan",
+  "uses": 6253,
+  "langs": [
+   "hi"
+  ],
+  "hi": 0.3,
+  "en": 0.974,
+  "avg": 0.57,
+  "heard": "Okay, listen. Go to Pillar and say, मुझे तीन के लिए चाहिए। You can do this."
+ },
+ {
+  "id": "772a907506434bcb8811acd1a87056e7",
+  "title": "Sanjay Dutt",
+  "uses": 4092,
+  "langs": [
+   "hi"
+  ],
+  "hi": 0.3,
+  "en": 0.974,
+  "avg": 0.57,
+  "heard": "Okay, listen. Go to pillar and say मुझे तीन के लिए चाहिए। You can do this."
+ },
+ {
+  "id": "3e974231c33248ffb8f71c97a5f176e1",
+  "title": "aakash chopra",
+  "uses": 3161,
+  "langs": [
+   "hi"
+  ],
+  "hi": 0.3,
+  "en": 0.974,
+  "avg": 0.57,
+  "heard": "Okay, listen. Go to pillar and say मुझे तीन के लिए चाहिए. You can do this."
+ },
+ {
+  "id": "bd0da5307b6b4c7fb591746849aefeac",
+  "title": "Kolhapuri DJ Voice ",
+  "uses": 7783,
+  "langs": [
+   "hi"
+  ],
+  "hi": 0.167,
+  "en": 0.222,
+  "avg": 0.189,
+  "heard": "ओके लिसन गो तू पिलार और से मुझे तीन के लिए चाहिए यू कैन डू दिस"
+ },
+ {
+  "id": "b79b6174191548d08af0fb6bf0396127",
+  "title": "Hindi Gojo Voice",
+  "uses": 4439,
+  "langs": [
+   "hi"
+  ],
+  "hi": 0.167,
+  "en": 0.216,
+  "avg": 0.186,
+  "heard": "ओके लिसन, गो तू पिलार और सेय, मुझे तीन किले चाहिए। यू कैन डू दिस."
+ },
+ {
+  "id": "94fc4065e6e04b9baf1aea2107e91d66",
+  "title": "Friendly Hindi Voice",
+  "uses": 3417,
+  "langs": [
+   "hi"
+  ],
+  "hi": 0.162,
+  "en": 0.216,
+  "avg": 0.184,
+  "heard": "ओके, लिसन, गो तू पिलार एंड से मुझे तीन के लिए चाहिए। यू कैन डू दिस।"
+ }
+]

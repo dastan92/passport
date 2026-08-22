@@ -143,10 +143,14 @@ function speakBrowser(text, residentId, onDone) {
   const ch = CHARACTER[residentId] || { pitch: 1, rate: 1, pick: 0 }
   const u = new SpeechSynthesisUtterance(text)
 
-  if (ch.lang === 'en-GB') {
-    const en = voices.filter(v => /^en(-|_)/i.test(v.lang))
+  if (ch.lang === 'en-IN') {
+    // Marco teaches Hindi phrases, so an Indian English voice is the only one
+    // that pronounces them correctly. Fall back to hi-IN, then any English.
+    const en = voices.filter(v => /^en[-_]IN/i.test(v.lang))
+      .concat(voices.filter(v => /^hi[-_]/i.test(v.lang)))
+      .concat(voices.filter(v => /^en(-|_)/i.test(v.lang)))
     if (en.length) u.voice = en[Math.min(ch.pick, en.length - 1)]
-    u.lang = 'en-GB'
+    u.lang = en.length ? en[0].lang : 'en-IN'
   } else {
     const hi = hindiVoices()
     if (hi.length) u.voice = hi[ch.pick % hi.length]

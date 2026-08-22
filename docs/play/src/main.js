@@ -146,10 +146,6 @@ window.addEventListener('blur', () => keys.clear())
 window.addEventListener('pointerdown', () => sound.start(), { once: false })
 window.addEventListener('keydown', () => sound.start(), { once: true })
 
-function occupied(x, z) {
-  return RESIDENTS.some(r => r.tile[0] === x && r.tile[1] === z)
-}
-
 // gait animation driven off the controller's speed output: arms and body bob
 // scale with how fast you are actually moving, so walk and run read apart.
 const talkFocus = new THREE.Vector3()

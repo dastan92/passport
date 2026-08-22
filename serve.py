@@ -7,6 +7,7 @@
   SpeechSynthesis when this returns 404, so the game works without it.
 """
 import functools
+import base64
 import hashlib
 import http.server
 import json
@@ -22,6 +23,84 @@ ROOT = os.path.join(HERE, "game")
 CACHE = os.path.join(HERE, ".tts-cache")
 
 FISH_URL = "https://api.fish.audio/v1/tts"
+GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
+GEMINI_TTS_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
+                  "{model}:generateContent")
+# $10 per 1M audio-output tokens; ~25 audio tokens per second of speech.
+GEMINI_TTS_USD_PER_SEC = 10.0 * 25 / 1_000_000
+
+# Prebuilt Gemini voices + a per-character style prompt. The style line is
+# ordinary English and is NOT spoken — it only conditions delivery.
+GEMINI_VOICES = {
+    "coach":  ("Charon", "Speak as a warm, encouraging Indian language coach talking to a nervous beginner. Natural Indian English accent, unhurried, friendly"),
+    "rosa":   ("Aoede", "Speak as a warm, motherly Indian baker in her late fifties, unhurried and a little teasing"),
+    "pilar":  ("Autonoe", "Speak as a quick, bright Indian market fruit-seller in her forties, cheerful and busy"),
+    "carmen": ("Gacrux", "Speak as a sharp, elderly Indian woman of seventy-nine, slow, deliberate and a little disapproving"),
+    "tomas":  ("Fenrir", "Speak as a loud, boisterous Indian fishmonger in his forties, big-hearted and full of exaggeration"),
+    "miguel": ("Puck", "Speak as a relaxed young Indian waiter in his twenties, easy-going and unbothered"),
+    "lucia":  ("Leda", "Speak as an excited nine-year-old Indian girl, fast, bright and curious"),
+    "padre":  ("Enceladus", "Speak as a gentle elderly Indian priest, slow, clear and kindly"),
+}
+
+
+def _wav(pcm, rate=24000):
+    """Gemini returns raw little-endian 16-bit PCM; browsers want a container."""
+    import struct
+    return (b"RIFF" + struct.pack("<I", 36 + len(pcm)) + b"WAVEfmt "
+            + struct.pack("<IHHIIHH", 16, 1, 1, rate, rate * 2, 2, 16)
+            + b"data" + struct.pack("<I", len(pcm)) + pcm)
+
+
+def gemini_tts(text, resident):
+    """Returns (wav_bytes, note) or (None, reason)."""
+    key = ENV.get("GEMINI_API_KEY")
+    if not key:
+        return None, "no gemini key"
+    voice, style = GEMINI_VOICES.get(resident, ("Charon", "Speak naturally"))
+    body = {
+        "contents": [{"parts": [{"text": f"{style}: {text}"}]}],
+        "generationConfig": {
+            "responseModalities": ["AUDIO"],
+            "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
+        },
+    }
+    url = GEMINI_TTS_URL.format(model=GEMINI_TTS_MODEL) + "?key=" + key
+    # The preview model intermittently answers finishReason OTHER with no
+    # audio — observed on ~half of calls. Retry with a short backoff before
+    # giving up and letting the caller fall through to Fish.
+    import time as _t
+    for attempt in (1, 2, 3, 4):
+        try:
+            req = urllib.request.Request(
+                url, data=json.dumps(body).encode(),
+                headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                d = json.loads(resp.read())
+        except Exception as e:
+            if attempt == 4:
+                return None, f"gemini tts unreachable: {e}"
+            _t.sleep(0.4 * attempt)
+            continue
+        cands = d.get("candidates") or []
+        parts = (cands[0].get("content") or {}).get("parts") if cands else None
+        if not parts:
+            if attempt == 4:
+                fin = cands[0].get("finishReason") if cands else "?"
+                return None, f"gemini tts empty (finish={fin})"
+            _t.sleep(0.4 * attempt)
+            continue
+        inline = parts[0].get("inlineData") or parts[0].get("inline_data") or {}
+        b64 = inline.get("data")
+        if not b64:
+            if attempt == 4:
+                return None, "gemini tts no inline audio"
+            _t.sleep(0.4 * attempt)
+            continue
+        pcm = base64.b64decode(b64)
+        secs = len(pcm) / (24000 * 2)
+        SPEND["tts"]["usd"] += secs * GEMINI_TTS_USD_PER_SEC
+        return _wav(pcm), "gemini"
+    return None, "gemini tts failed"
 GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 # USD per 1M tokens, list price as of Aug 2026. gemini-3.7-flash is on a
@@ -170,7 +249,27 @@ def _fish_request(key, text, voice, prosody):
 
 
 def synthesize(text, resident):
-    """-> (audio_bytes|None, source_string). source doubles as the error."""
+    """-> (audio_bytes|None, source_string). source doubles as the error.
+
+    Gemini TTS is tried first: its prebuilt voices are professional (no
+    celebrity clones), it reads romanized Hindi correctly as Hindi, and it
+    takes a per-character style prompt — which is how Marco gets an Indian
+    English coach read. Fish is the fallback, browser speech the last resort.
+    """
+    if ENV.get("GEMINI_API_KEY"):
+        gsig = "gem2|" + resident + "|" + text
+        gpath = os.path.join(CACHE, hashlib.sha1(gsig.encode()).hexdigest() + ".wav")
+        if os.path.exists(gpath):
+            with open(gpath, "rb") as f:
+                return f.read(), "cache"
+        audio, note = gemini_tts(text, resident)
+        if audio is not None:
+            os.makedirs(CACHE, exist_ok=True)
+            with open(gpath, "wb") as f:
+                f.write(audio)
+            return audio, note
+        print("[tts] gemini fell back to fish:", note)
+
     key = ENV.get("FISH_API_KEY")
     if not key:
         return None, "no key"
@@ -236,6 +335,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 "gemini": bool(ENV.get("GEMINI_API_KEY")),
                 "fish": bool(ENV.get("FISH_API_KEY")),
                 "model": ENV.get("GEMINI_MODEL", GEMINI_MODEL),
+                "voice": "gemini" if ENV.get("GEMINI_API_KEY") else
+                         ("fish" if ENV.get("FISH_API_KEY") else "browser"),
             })
             return
         if self.path == "/api/cost":
@@ -353,7 +454,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
         voice, _ = voice_for(resident)
         self.send_response(200)
-        self.send_header("Content-Type", "audio/mpeg")
+        self.send_header("Content-Type",
+                         "audio/wav" if audio[:4] == b"RIFF" else "audio/mpeg")
         self.send_header("Content-Length", str(len(audio)))
         self.send_header("X-TTS-Source", source)
         self.send_header("X-TTS-Voice", voice or "(default)")
