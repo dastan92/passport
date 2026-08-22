@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { EffectComposer } from '../vendor/jsm/postprocessing/EffectComposer.js'
+import { Sky } from '../vendor/jsm/objects/Sky.js'
 import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
@@ -32,8 +33,11 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.08
 
 const scene = new THREE.Scene()
-scene.background = new THREE.Color(0xaed4ea) // coastal sky
-scene.fog = new THREE.Fog(0xc4dcea, 70, 220)
+// The sky is a real Sky dome (vendored addon) rather than a flat clear
+// colour, and it is baked once through PMREM into scene.environment — which
+// gives every MeshStandardMaterial an actual specular response. Without it
+// the whole town rendered pure Lambert, which read as flat and cheap.
+scene.fog = new THREE.Fog(0xd8e2ea, 70, 230)
 
 // ---------------------------------------------------------------------------
 // camera — perspective, high three-quarter follow. Warmth needs perspective.
@@ -58,10 +62,40 @@ sun.shadow.bias = -0.0005
 sun.shadow.normalBias = 0.03
 scene.add(sun)
 scene.add(sun.target)
-scene.add(new THREE.HemisphereLight(0xbcd8f0, 0xd8c090, 1.25))
+// Hemisphere drops hard once the environment map exists — keeping it at 1.25
+// would double-count sky bounce and wash the shadows out.
+scene.add(new THREE.HemisphereLight(0xbcd8f0, 0xd8c090, 0.35))
 const fill = new THREE.DirectionalLight(0xffe0c0, 0.3)
 fill.position.set(26, 14, -18)
 scene.add(fill)
+
+// ---------------------------------------------------------------------------
+// sky + image-based lighting
+// ---------------------------------------------------------------------------
+{
+  const sky = new Sky()
+  sky.scale.setScalar(45000)
+  scene.add(sky)
+  const u = sky.material.uniforms
+  u.turbidity.value = 4
+  u.rayleigh.value = 1.4
+  u.mieCoefficient.value = 0.005
+  u.mieDirectionalG.value = 0.8
+  if (u.cloudCoverage) u.cloudCoverage.value = 0.32
+  // sun position matches the directional light's bearing
+  const sunDir = sun.position.clone().normalize()
+  u.sunPosition.value.copy(sunDir)
+
+  const pmrem = new THREE.PMREMGenerator(renderer)
+  pmrem.compileEquirectangularShader()
+  // bake WITHOUT the sun disc — a raw disc in the env map leaves a fireball
+  // highlight on every glossy surface — then show it again for the visible sky
+  if (u.showSunDisc) u.showSunDisc.value = 0
+  scene.environment = pmrem.fromScene(sky, 0, 0.1, 1100).texture
+  if (u.showSunDisc) u.showSunDisc.value = 1
+  scene.environmentIntensity = 0.85
+  pmrem.dispose()
+}
 
 // ---------------------------------------------------------------------------
 // world + people + ambient life
@@ -111,7 +145,15 @@ const sound = createSoundscape()
 // ---------------------------------------------------------------------------
 // post
 // ---------------------------------------------------------------------------
-const composer = new EffectComposer(renderer)
+// MSAA: the renderer's antialias flag is inert when every frame goes through
+// EffectComposer — the composer's own render target must carry the samples.
+// Hardware MSAA here is cheaper and sharper than SMAA/FXAA passes for a town
+// made of hard-edged geometry.
+const composerTarget = new THREE.WebGLRenderTarget(
+  window.innerWidth, window.innerHeight,
+  { type: THREE.HalfFloatType, samples: 4 },
+)
+const composer = new EffectComposer(renderer, composerTarget)
 composer.addPass(new RenderPass(scene, camera))
 const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.22, 0.6, 0.9)
 composer.addPass(bloom)
@@ -688,6 +730,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight
   camera.updateProjectionMatrix()
   renderer.setSize(window.innerWidth, window.innerHeight)
+  composerTarget.setSize(window.innerWidth, window.innerHeight)
   composer.setSize(window.innerWidth, window.innerHeight)
 })
 
