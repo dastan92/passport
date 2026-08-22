@@ -646,6 +646,16 @@ Two things worth knowing if you're building this. First, <strong>no Flash-Lite m
 
 <p>Grid Engine deserves a specific mention, because it is the single largest "don't build this" win available. The exact movement model this game needs — tile-snapped walking, facing directions, collision, NPCs pathing around a plaza on a schedule — is the thing someone else built, maintained for years, and released under MIT. Adopting it removes a month of subtly wrong collision bugs from the project.</p>
 
+<h3>Why not Unity</h3>
+
+<p>The reasonable question. The answer is that this game's core input is a live microphone stream, and the big engines treat that as an edge case in web builds: Unity's <code>Microphone</code> class isn't supported in WebGL at all — you bolt on a community JavaScript shim — and Godot's own microphone docs list Windows, macOS, Linux, Android and iOS, with web conspicuously absent. The mechanic the entire game rests on would be the one thing fighting the engine.</p>
+
+<p>In JavaScript it's the paved road instead: microphone into an audio worklet into a socket, which is exactly the shape the model wants. And browser-first buys what Phase 1 needs most — you send someone a link, they allow the mic, and thirty seconds later they're talking to Rosa. No install, no per-platform build. When the question under test is "is this magical," friction is the enemy.</p>
+
+<p>It helps that rendering isn't where the risk lives. Drawing a 2D tile town is solved everywhere; voice latency and NPC memory are not. Nor is "better graphics" really an engine question — Sea of Stars is a 2D game, and what makes it beautiful is art direction, not the renderer. The ceiling here is the quality of the tiles and sprites.</p>
+
+<p>The hedge is that almost none of this is engine-locked. Tiled maps and LPC sprites load in Godot and Unity too, so if the browser turns out to be the wrong bet, the world, the cast and the missions all survive and only the runtime is thrown away. If it ever does go native, the pick is Godot — free, MIT, excellent 2D — not Unity.</p>
+
 <h3>The town generator we do have to write</h3>
 
 <p>Here's where the research disappointed, usefully. There are lovely procedural city generators out there, and <strong>none of them can generate this game's town</strong> — because in Pueblo a building is not scenery. Every building is a <em>place with a purpose and a person in it</em>: this one is a bakery, the bakery has Rosa, Rosa gives you the bread mission. Generic generators model streets and rooftops. They have no concept of the thing that matters.</p>
