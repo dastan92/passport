@@ -7,7 +7,7 @@ import { buildTown, isWalkable, tileToWorld, groundHeight, PLAZA_H, COLS, ROWS, 
 import { createController } from './movement.js'
 import { buildPerson, RESIDENTS } from './people.js'
 import { spawnAmbient, createSoundscape } from './ambient.js'
-import { ask, askCoach, getKey, setKey, forgetAll, learnerState, hasLLM, serverReady, getModel, setModel } from './conversation.js'
+import { ask, askCoach, getKey, setKey, forgetAll, learnerState, memoryOf, hasLLM, serverReady, getModel, setModel, openingLine, updateImpression, markSeen, impressionOf } from './conversation.js'
 import { activeMission, missionFor, completeMission, missionState } from './missions.js'
 import * as tts from './tts.js'
 import { tryReveal, factsHeldBy, knownFacts, resetKnowledge } from './knowledge.js'
@@ -261,6 +261,67 @@ function refreshMission() {
     (facts ? `<div class="mc-facts">gyaan: ${facts} baat pata hai</div>` : '')
 }
 refreshMission()
+refreshProgress()
+
+// The game is called Passport. Completing an errand stamps it — that is the
+// reward, and it is diegetic rather than an arbitrary points counter. What we
+// count is what we want more of: words actually produced, and people who now
+// know you. Never a streak; showing up is not the skill.
+function stampPassport(done, resident) {
+  const el2 = document.getElementById('stamp')
+  const st = learnerState()
+  el2.innerHTML =
+    `<div class="stamp-ring">` +
+      `<div class="stamp-mark">${done.reward?.item ? '✦' : '✓'}</div>` +
+      `<div class="stamp-title">${done.title}</div>` +
+      `<div class="stamp-en">${done.titleEn}</div>` +
+      (done.reward?.item ? `<div class="stamp-item">${done.reward.item}</div>` : '') +
+      `<div class="stamp-meta">${missionState().done.length} stamps · ${st.words.length} shabd · ${metPeople()} log</div>` +
+    `</div>`
+  el2.classList.remove('hidden', 'go')
+  void el2.offsetWidth
+  el2.classList.add('go')
+  chime()
+  setTimeout(() => el2.classList.add('hidden'), 3400)
+  refreshProgress()
+}
+
+// how many residents you have actually spoken to
+function metPeople() {
+  return RESIDENTS.filter(r => memoryOf(r.id).length > 0).length
+}
+
+function refreshProgress() {
+  const el2 = document.getElementById('progress')
+  if (!el2) return
+  const st = learnerState()
+  el2.innerHTML =
+    `<span title="errands stamped">✦ ${missionState().done.length}</span>` +
+    `<span title="Hindi words you have produced">${st.words.length} shabd</span>` +
+    `<span title="residents you have spoken to">${metPeople()}/${RESIDENTS.length} log</span>`
+}
+
+// a short major arpeggio — the sound of a rubber stamp landing well
+function chime() {
+  try {
+    const ctx = (window.__soundscape && window.__soundscape.ctx) || null
+    if (!ctx) return
+    const t0 = ctx.currentTime
+    ;[523.25, 659.25, 783.99].forEach((f, i) => {
+      const o = ctx.createOscillator(); const g = ctx.createGain()
+      o.type = 'triangle'; o.frequency.value = f
+      g.gain.setValueAtTime(0.0001, t0 + i * 0.07)
+      g.gain.exponentialRampToValueAtTime(0.12, t0 + i * 0.07 + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.07 + 0.5)
+      o.connect(g).connect(ctx.destination)
+      o.start(t0 + i * 0.07); o.stop(t0 + i * 0.07 + 0.55)
+    })
+  } catch {}
+}
+
+function markCoachUnread() {
+  document.getElementById('coach-toggle').classList.add('unread')
+}
 
 function showToast(text, sub) {
   toast.innerHTML = `<div class="t-main">${text}</div>` + (sub ? `<div class="t-sub">${sub}</div>` : '')
@@ -294,15 +355,27 @@ function openConvo(r) {
   cvName.textContent = r.name
   cvRole.textContent = r.role
   cvLog.innerHTML = ''
-  addLine(cvLog, '', r.opener, 'them')
+  // Authored line on first meeting; after that they greet you from memory.
+  // Shown immediately either way, then quietly replaced when the real one
+  // lands, so the panel is never sitting empty waiting on the network.
+  const first = addLine(cvLog, '', r.opener, 'them')
   if (showTranslation && r.openerEn) addLine(cvLog, '', r.openerEn, 'tr')
+  markSeen(r.id)
+  if (memoryOf(r.id).length) {
+    openingLine(r).then(line => {
+      if (talking === r && line) {
+        first.querySelector('.cv-text').textContent = line
+        tts.speak(line, r.id)
+      }
+    })
+  }
   panel.classList.remove('hidden')
   sound.duck(true)
   talkPrompt.classList.add('hidden')
   cvStatus.textContent = hasLLM() ? '' : 'no API key · limited replies'
   if (getPatience(r.id) < 20) setPatience(r.id, 20) // time cools tempers a little
   renderPatience()
-  tts.speak(r.opener, r.id)
+  if (!memoryOf(r.id).length) tts.speak(r.opener, r.id)
   setTimeout(() => cvInput.focus(), 60)
   r.group.userData.turnTo = player.position.clone()
 }
@@ -310,6 +383,7 @@ function openConvo(r) {
 function closeConvo() {
   tts.stop()
   sound.duck(false)
+  if (talking) updateImpression(talking)   // fire and forget; they remember you
   talking = null
   panel.classList.add('hidden')
   cvInput.blur()
@@ -343,7 +417,10 @@ async function _send(text) {
   const pending = addLine(cvLog, '', '···', 'them pending')
   cvStatus.textContent = 'soch rahe…'
   const r = talking
-  const m = missionFor(r.id)
+  // Marco is the coach: he knows what you are supposed to be doing even
+  // though he is never the errand's target. Without this he was handed a
+  // null mission and invented shopkeepers who do not exist.
+  const m = r.id === 'coach' ? activeMission() : missionFor(r.id)
   // patience first: if they are out, the conversation is over
   setPatience(r.id, getPatience(r.id) + patienceDelta(r.id, text))
   if (getPatience(r.id) <= 0) {
@@ -391,11 +468,17 @@ async function _send(text) {
       const done = completeMission(m.id)
       if (done) {
         setPatience(r.id, getPatience(r.id) + 15)
-        showToast(`✓ ${done.title}`, done.reward?.item ? `mila: ${done.reward.item}` : '')
+        stampPassport(done, r)
         refreshMission()
-        coachSay(`Nice — "${done.titleEn}" done. ` + (activeMission()
-          ? `Next up: ${activeMission().titleEn}. ${activeMission().brief}`
-          : `That's everything I had for you. The town is yours — go get lost in it.`))
+        const next = activeMission()
+        // Marco hands off the next errand himself, in the side pane. If it is
+        // closed he gets an unread badge rather than talking to nobody.
+        setTimeout(() => {
+          coachSay(next
+            ? `That's "${done.titleEn}" done — nice. Next: ${next.brief} Say: ${next.hint}`
+            : `That's everything I had for you, and you got your passport back. The town is yours now — go get lost in it.`)
+          if (coachPane.classList.contains('hidden')) markCoachUnread()
+        }, 1500)
       }
     }
   } catch (e) {
@@ -447,6 +530,7 @@ function toggleCoach(force) {
   const show = force !== undefined ? force : coachPane.classList.contains('hidden')
   coachPane.classList.toggle('hidden', !show)
   document.body.classList.toggle('coach-open', show)
+  if (show) el('coach-toggle').classList.remove('unread')
   el('coach-toggle').classList.toggle('on', show)
   if (show) setTimeout(() => coachInput.focus(), 60)
   else coachInput.blur()

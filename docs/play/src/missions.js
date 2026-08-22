@@ -103,9 +103,19 @@ export function activeMission() {
   return MISSIONS.find(m => m.id === state.active) || null
 }
 
+// Any errand this person can hand over RIGHT NOW — not merely the one the HUD
+// is pointing at. Doing a later errand early is initiative, not a bug: the
+// player who walks into the bakery and orders bread correctly should be
+// rewarded for it, even if the card still says "buy bananas". Fact-gated
+// missions stay locked, because those depend on knowing something.
 export function missionFor(npcId) {
-  const m = activeMission()
-  return m && m.target === npcId ? m : null
+  const active = activeMission()
+  if (active && active.target === npcId) return active
+  return MISSIONS.find(m =>
+    m.target === npcId &&
+    !state.done.includes(m.id) &&
+    (!m.requiresFact || has(m.requiresFact))
+  ) || null
 }
 
 export function completeMission(id) {
@@ -115,7 +125,11 @@ export function completeMission(id) {
   if (m.requiresFact && !has(m.requiresFact)) return null
   state.done.push(id)
   if (m.reward?.item) state.inventory.push(m.reward.item)
-  const next = MISSIONS.find(x => !state.done.includes(x.id))
+  // Advance to the first errand that is still open AND actually reachable —
+  // skipping anything the player already finished ahead of schedule.
+  const next = MISSIONS.find(x => !state.done.includes(x.id) &&
+                                  (!x.requiresFact || has(x.requiresFact)))
+             || MISSIONS.find(x => !state.done.includes(x.id))
   state.active = next ? next.id : null
   persist()
   return m

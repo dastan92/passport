@@ -168,6 +168,99 @@ function noteProfile(text) {
 const memories = readJSON('passport_memory', {})
 export function memoryOf(id) { return memories[id] || [] }
 
+// ---------------------------------------------------------------------------
+// Residents are agents, not transcripts. Beside the raw turns, each keeps a
+// short standing impression of the player that survives between visits, plus
+// when they last saw them and how often. That is what lets Rosa open with
+// "you again" on the fifth visit instead of replaying one authored line
+// forever, and it is small enough to ride along in every prompt for free.
+// ---------------------------------------------------------------------------
+const impressions = readJSON('passport_impressions', {})
+
+export function impressionOf(id) { return impressions[id] || null }
+
+function saveImpression(id, patch) {
+  impressions[id] = Object.assign({}, impressions[id], patch)
+  writeJSON('passport_impressions', impressions)
+}
+
+export function markSeen(id) {
+  const prev = impressionOf(id)
+  saveImpression(id, { lastSeen: Date.now(), visits: (prev && prev.visits || 0) + 1 })
+}
+
+// Distil what this resident now thinks of the player. One cheap call at the
+// END of a conversation, so the player never waits on it.
+export async function updateImpression(r) {
+  const past = memoryOf(r.id)
+  if (past.length < 2 || !hasLLM()) return
+  const prev = impressionOf(r.id)
+  const lines = past.slice(-6).map(t => 'They: ' + t.p + ' | You: ' + t.r).join(' // ')
+  const sys = 'You are ' + r.name + ', ' + r.role + ' in Pueblo. Summarise what you now think of the foreigner you have been talking to, for your own memory. ONE line, under 25 words, in English, written as your private impression: what they are like, what they wanted, what they are bad at, how you feel about them. Blunt and specific. No preamble.'
+  const ask2 = (prev && prev.note ? 'What you thought before: ' + prev.note + ' // ' : '') +
+    'Latest conversation: ' + lines + ' // Your updated one-line impression:'
+  try {
+    const data = await callModel({
+      systemInstruction: { parts: [{ text: sys }] },
+      contents: [{ role: 'user', parts: [{ text: ask2 }] }],
+      generationConfig: { maxOutputTokens: 60, temperature: 0.7 },
+    })
+    let note = String(data || '').trim()
+    note = note.replace(/^["']|["']$/g, '').split(String.fromCharCode(10))[0].slice(0, 160)
+    if (note) saveImpression(r.id, { note })
+  } catch (e) { /* an impression is a nicety; never surface a failure */ }
+}
+
+// The first thing they say when you walk up. The authored line stands on the
+// very first meeting because it establishes who they are; after that the
+// greeting is generated from what they remember, so no two visits open alike.
+export async function openingLine(r) {
+  const past = memoryOf(r.id)
+  const imp = impressionOf(r.id)
+  if (!past.length || !hasLLM()) return null
+  const mins = imp && imp.lastSeen ? Math.round((Date.now() - imp.lastSeen) / 60000) : null
+  const last = past[past.length - 1]
+
+  // Deliberately NOT the full resident prompt: that one is written to sustain a
+  // whole conversation, and against a short output cap the model just returned
+  // an empty part. A tight brief produces a better greeting for a fraction of
+  // the tokens.
+  const sys = [
+    'You are ' + r.name + ', ' + r.age + ', ' + r.role + ' in Pueblo. ' + (r.persona || ''),
+    r.agenda ? 'On your mind today: ' + r.agenda : '',
+    'Someone you have met before has just walked up to you again.',
+    'Greet them in ONE short sentence of romanized Hindi (Latin letters, never Devanagari).',
+    'React to the fact that they are BACK - do not use a generic opening line, and do not repeat what you said last time.',
+    'No emoji, no asterisks, no stage directions, no English.',
+  ].filter(Boolean).join(' ')
+
+  const facts = [
+    'This is visit number ' + ((imp && imp.visits || 1) + 1) + '.',
+    mins !== null && mins < 600 ? 'It has been about ' + mins + ' minute(s) since you last spoke.' : '',
+    imp && imp.note ? 'What you think of them: ' + imp.note : '',
+    'Last time they said: "' + last.p + '"',
+    'and you answered: "' + last.r + '"',
+    profileLine(),
+  ].filter(Boolean).join(' ')
+
+  try {
+    const data = await callModel({
+      systemInstruction: { parts: [{ text: sys }] },
+      contents: [{ role: 'user', parts: [{ text: facts + ' Now greet them.' }] }],
+      generationConfig: { maxOutputTokens: 200, temperature: 1.1 },
+    })
+    // callModel already returns the extracted text, not the API envelope.
+    const out = sanitise(String(data || ''), { sentences: 1, stage: true })
+    return out && out.trim() ? out.trim() : null
+  } catch (e) { return null }
+}
+
+// What the town has picked up about the player, in one clause.
+function profileLine() {
+  const name = profile && profile.name ? 'Their name is ' + profile.name + '.' : ''
+  return name
+}
+
 // The coach pane is a separate conversation, but Marco is not blind: he sees
 // the street. This is what lets "what did Rosa just say?" actually work.
 let lastTalk = null
@@ -181,6 +274,7 @@ function remember(id, turn) {
 
 export function forgetAll() {
   localStorage.removeItem('passport_memory')
+  localStorage.removeItem('passport_impressions')
   localStorage.removeItem('passport_learner')
   localStorage.removeItem('passport_profile')
   location.reload()
@@ -309,11 +403,11 @@ ${r.persona}
 ${r.backstory ? `Your life: ${r.backstory}\n` : ''}${r.goal ? `What you want: ${r.goal}\n` : ''}${r.relationships ? `Your people: ${r.relationships}\n` : ''}${r.doing ? `Right now: ${r.doing}.\n` : ''}${r.agenda ? `On your mind today: ${r.agenda}.` : ''}
 
 THEM
-A foreigner learning Hindi, roughly ${learner.level}. ${whoTheyAre()} ${history}
+A foreigner learning Hindi, roughly ${learner.level}. ${whoTheyAre()} ${history}${impressionOf(r.id) && impressionOf(r.id).note ? `\nWhat you already think of them: ${impressionOf(r.id).note}` : ''}
 
 HOW YOU TALK
-- Romanized Hindi ONLY: Latin letters, never Devanagari. Write "Main theek hoon, aur tum?" — never the Devanagari form. Simple consistent spellings a learner can read aloud. Everyday speech: arre, beta, bhai, yaar, haan, uff.
-- 1 to 3 short sentences, and nothing else. No emoji, no asterisks, no stage directions, no English, no translations, no grammar lessons, no explaining what you just said.
+- Romanized Hindi: Latin letters, never Devanagari. Write "Main theek hoon, aur tum?" — never the Devanagari form. Simple consistent spellings a learner can read aloud. Everyday speech: arre, beta, bhai, yaar, haan, uff.
+- 1 to 3 short sentences, and nothing else. No emoji, no asterisks, no stage directions, no grammar lessons, no explaining what you just said.
 - Match their level and push it one small step. One vivid short sentence beats three flat ones.
 - Money here is euros, never rupees.
 - Names of people and places stay as they are, but every ordinary word is Hindi: say "kele", never "platanos"; "machhli", never "pescado".
@@ -326,7 +420,14 @@ HOW YOU BEHAVE
 - Use your own life — the people you know, what you want, today's annoyance. Gossip. Name names.
 - Remember what they told you earlier and use it. Never repeat a sentence you have already said.
 - If their Hindi is genuinely unclear, say so plainly and ask again in easier words. Do not guess wildly and do not pretend to understand.
-- Never break character. You have never heard of an AI. You do not speak English.${extra.knowledge ? extra.knowledge + 'Hold every one of those back until they ask about that exact thing. Blurting it out robs them of the moment they were working towards.\n' : ''}${extra.mood || ''}${mission ? `
+- Never break character. You have never heard of an AI.
+
+WHEN THEY ARE LOST
+They will not understand you sometimes. Do what a real person does, in this order — never just repeat yourself identically:
+1. Say it again shorter and simpler, with the key word on its own. "Kele. Teen kele. Haan?"
+2. Point at the thing, hold it up, count on your fingers — describe the action plainly as part of the sentence.
+3. Only then, if you have any English at all, drop in the ONE word that unlocks it: ENGLISH YOU KNOW: ${r.english || 'none at all — you have never learned a word of it'}. A word or two, the way someone reaching for a foreign language actually does. Never a whole English sentence, never a translation of what you just said, and never a switch into English for the rest of the conversation — you would not be able to keep it up.
+IF THEY WRITE TO YOU IN ENGLISH\nDo not parse it. You cannot follow an English sentence - reading one is like hearing static with one familiar word in it. Concretely:\n- Scan only for words you would genuinely know: the ones listed above, plus names, plus words that are the same in both languages (chai, roti, chapati, cafe, passport, bus, euro). React to THAT word alone and ignore the grammar around it.\n- If you found such a word, answer it directly. You may well be wrong about what they meant, and that is realistic.\n- If you found nothing you know, say so plainly in Hindi and hand them the sentence they should have said. Never infer their intent from the English.\nNever respond to the MEANING of an English sentence whose words you do not know. Getting it right would be the unrealistic part.${extra.knowledge ? extra.knowledge + 'Hold every one of those back until they ask about that exact thing. Blurting it out robs them of the moment they were working towards.\n' : ''}${extra.mood || ''}${mission ? `
 
 TODAY: they have been sent to you with an errand — ${mission.objective} If they manage it, react like it is an ordinary moment of your day: hand it over, answer, move on. Never reveal it was arranged.` : ''}`
 }
@@ -335,23 +436,33 @@ TODAY: they have been sent to you with an errand — ${mission.objective} If the
 // side pane, but in the street he coaches in the moment instead of lecturing.
 function coachInStreetPrompt(r, mission, extra = {}) {
   const past = memoryOf(r.id)
-  return `You are Marco, 35, the one person in Pueblo who speaks English. ${r.persona}
-Your life: ${r.backstory}
-What you want: ${r.goal}
-Your people: ${r.relationships}
-Right now: ${r.doing}.
+  return `You are Marco, 35, the one person in Pueblo who speaks English. You coach newcomers through their first weeks. ${r.backstory}
 
 THEM
-A foreigner learning Hindi, roughly ${learner.level}. ${whoTheyAre()} ${past.length ? `You have talked ${past.length} times already — refer back to it.` : 'This is your first proper conversation.'}
+A foreigner learning Hindi, roughly ${learner.level}. ${whoTheyAre()} ${past.length ? `You have talked ${past.length} times already.` : 'This is your first proper conversation.'} They are TYPING to you, not speaking aloud — never comment on how their voice sounded, their accent, or their pronunciation, because you cannot hear it.
+
+EVERYONE WHO LIVES HERE — these are the ONLY people in Pueblo. Never invent a resident, a shop, or a stall; sending them to someone who does not exist is the worst thing you can do to them.
+- Pilar: fruit stall on the east side of the plaza
+- Rosa: the bakery, north of the plaza
+- Tomas: fishmonger, the market row
+- Dona Carmen: elderly neighbour, watches the west street from her chair
+- Miguel: waiter at the cafe on the west side
+- Lucia: nine years old, plays in the plaza with her dog Chispa
+- Padre Antonio: the priest, at the church
+
+YOUR ONE JOB
+Answer the question they actually asked, in plain English, before anything else. If they ask "do I say it in Hindi?" the answer is yes plus the exact sentence. If they ask what a word means, tell them. If they are confused, unconfuse them. You are the safety net in a town where nobody else speaks their language — being unhelpful is the only way you can fail them.
+${mission ? `
+THEIR ERRAND RIGHT NOW: ${mission.brief}
+The sentence that works: ${mission.hint}
+Give them THAT sentence when they need a phrase. Never invent a different errand, a different shopkeeper, or a different thing to buy — it sends them across town for nothing.` : `
+They have no errand outstanding. Suggest someone worth talking to and give them an opening line.`}
 
 HOW YOU TALK
-- English, warm and direct, plus the exact romanized Hindi sentence they should use next (Latin letters, e.g. "mujhe teen kele chahiye" — never Devanagari).
+- English, warm and direct, plus the exact romanized Hindi they should say (Latin letters, e.g. "mujhe teen kele chahiye" — never Devanagari).
 - 1 to 3 sentences. No emoji, no asterisks, no stage directions, no grammar lectures.
-- You are their friend, not their servant. Tease them. Push them out of this conversation and towards a real neighbour — you are the easy option and you know it.
-- You have your own life: the language cafe you are saving for, your father, this town. Bring it up.
-- Never flatter. If they are avoiding the hard thing, name it.${extra.mood || ''}${mission ? `
-
-Their errand right now: ${mission.objective} The phrase that works: ${mission.hint}` : ''}`
+- Encouraging. You can be dry or funny, but never dismissive, never insulting, and never refuse to help. "Stop asking me" is exactly the wrong answer — they asked because they are lost.
+- Your own life (the language cafe you are saving for, your father, Manchester) is background. Mention it only if they ask, or in one short aside — never instead of answering.${extra.mood || ''}`
 }
 
 async function callGemini(r, text, mission, extra) {

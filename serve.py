@@ -74,7 +74,7 @@ def gemini_tts(text, resident):
     # audio — observed on ~half of calls. Retry with a short backoff before
     # giving up and letting the caller fall through to Fish.
     import time as _t
-    for attempt in (1, 2, 3, 4):
+    for attempt in (1, 2):
         try:
             req = urllib.request.Request(
                 url, data=json.dumps(body).encode(),
@@ -82,24 +82,21 @@ def gemini_tts(text, resident):
             with urllib.request.urlopen(req, timeout=45) as resp:
                 d = json.loads(resp.read())
         except Exception as e:
-            if attempt == 4:
+            if attempt == 2:
                 return None, f"gemini tts unreachable: {e}"
-            _t.sleep(0.4 * attempt)
             continue
         cands = d.get("candidates") or []
         parts = (cands[0].get("content") or {}).get("parts") if cands else None
         if not parts:
-            if attempt == 4:
+            if attempt == 2:
                 fin = cands[0].get("finishReason") if cands else "?"
                 return None, f"gemini tts empty (finish={fin})"
-            _t.sleep(0.4 * attempt)
             continue
         inline = parts[0].get("inlineData") or parts[0].get("inline_data") or {}
         b64 = inline.get("data")
         if not b64:
-            if attempt == 4:
+            if attempt == 2:
                 return None, "gemini tts no inline audio"
-            _t.sleep(0.4 * attempt)
             continue
         pcm = base64.b64decode(b64)
         um = d.get("usageMetadata") or {}
@@ -267,7 +264,8 @@ def synthesize(text, resident):
     takes a per-character style prompt — which is how Marco gets an Indian
     English coach read. Fish is the fallback, browser speech the last resort.
     """
-    if ENV.get("GEMINI_API_KEY"):
+    prefer_gemini = (resident == "coach") or not ENV.get("FISH_API_KEY")
+    if ENV.get("GEMINI_API_KEY") and prefer_gemini:
         gsig = "gem2|" + resident + "|" + text
         gpath = os.path.join(CACHE, hashlib.sha1(gsig.encode()).hexdigest() + ".wav")
         if os.path.exists(gpath):
@@ -282,6 +280,18 @@ def synthesize(text, resident):
         print("[tts] gemini fell back to fish:", note)
 
     key = ENV.get("FISH_API_KEY")
+    if not key and ENV.get("GEMINI_API_KEY") and not prefer_gemini:
+        gsig = "gem2|" + resident + "|" + text
+        gpath = os.path.join(CACHE, hashlib.sha1(gsig.encode()).hexdigest() + ".wav")
+        if os.path.exists(gpath):
+            with open(gpath, "rb") as f:
+                return f.read(), "cache"
+        audio, note = gemini_tts(text, resident)
+        if audio is not None:
+            os.makedirs(CACHE, exist_ok=True)
+            with open(gpath, "wb") as f:
+                f.write(audio)
+            return audio, note
     if not key:
         return None, "no key"
     voice, prosody = voice_for(resident)
