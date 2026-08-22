@@ -246,4 +246,6 @@ body {
 #coach-input:focus { outline: none; border-color: var(--accent); }
 
 /* convo panel shifts left when coach pane is open */
-#coach-pane:not(.hidden) ~ #convo { left: calc(50% - 10.5rem); }
+body.coach-open #convo { left: calc(50% - 10.5rem); }
+body.coach-open #talk-prompt { left: calc(50% - 10.5rem); }
+body.coach-open #toast { left: calc(50% - 10.5rem); }

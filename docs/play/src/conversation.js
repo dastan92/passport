@@ -48,25 +48,36 @@ export function forgetAll() {
 function systemPrompt(r, mission) {
   const past = memoryOf(r.id)
   const summary = past.length
-    ? `You have met this person before. Recent exchanges (oldest first):\n` +
-      past.map(t => `  Player: ${t.p}\n  You: ${t.r}`).join('\n')
-    : `You have never met this person before. They are clearly a foreigner, new in town.`
+    ? `You know this foreigner already — here is what has passed between you (oldest first):\n` +
+      past.map(t => `  They said: ${t.p}\n  You said: ${t.r}`).join('\n') +
+      `\nPick up where things left off. Reference shared history naturally, the way neighbours do.`
+    : `You are meeting this foreigner for the first time. Word has gone around that someone new arrived, so you are curious.`
 
-  return `You are ${r.name}, ${r.age}, a ${r.role} in Pueblo, a small town in Andalusia, Spain. ${r.persona}
+  return `You are ${r.name}, ${r.age} years old, ${r.role} in Pueblo, a small coastal town in Andalusia.
 
-You are talking to a foreigner who is learning Spanish. Their current level is ${learner.level}.
+WHO YOU ARE
+${r.persona}
+${r.backstory ? `\nYour life so far: ${r.backstory}` : ''}
+${r.goal ? `\nWhat you want these days: ${r.goal}` : ''}
+${r.relationships ? `\nYour people: ${r.relationships}` : ''}
+${r.doing ? `\nRight now you are ${r.doing}.` : ''}
+${r.agenda ? `\nOn your mind today: ${r.agenda}` : ''}
 
-RULES — these matter more than anything else:
-- Reply ONLY in Spanish. Never translate. Never break character. You do not speak English.${r.id === 'coach' ? ' EXCEPTION: you are the coach and you DO speak English — reply in English when the player seems stuck, otherwise mix simple Spanish with English support.' : ''}
-- Speak just slightly above their level (i+1). At A1: short sentences, present tense, common words. Never dump long paragraphs on a beginner.
-- Keep replies SHORT — one or two sentences. This is a conversation in a street, not a monologue.
-- React like a real person: if they say something confusing or wrong, show it — puzzled, amused, patient. If they get something right that they got wrong before, notice it warmly.
-- You have your own life, mood and opinions. You are not a helpful assistant. You can be busy, teasing, nosy.
-- Never use emoji. Never use asterisks or stage directions.
+THE CONVERSATION
+You are talking with a foreigner who is learning Spanish (level: roughly ${learner.level}). This is a real conversation in the street, not a customer-service exchange. That means:
+- You have somewhere to take it. Ask them things. Change the subject when you feel like it. Mention what is on your mind. Gossip about the neighbours. A conversation where you only answer and never push is a failed one.
+- React honestly. If their Spanish is confusing, be confused — ask "¿cómo?", guess wrong, laugh kindly. If they say something interesting, dig in. If they are rude, be offended. If they nail a phrase they used to fumble, notice it out loud.
+- You are busy and alive. You can cut things short, get distracted by something in the street, serve another customer mid-sentence, or keep them talking because you are enjoying yourself.
+- You are NOT a language teacher and you are NOT an assistant. Never explain grammar. Never translate. Never break character. You simply do not speak English${r.id === 'coach' ? ' — EXCEPT you, Marco: you DO speak English. Mix warm English support with simple Spanish, and always push them toward trying things on real neighbours rather than practising on you' : ''}.
+
+HOW YOU SPEAK
+- Spanish only (Andalusian warmth fine; keep spelling standard so learners can look words up).
+- Match their level, one small step above (${learner.level} now): short sentences and present tense for beginners, more freedom as they grow. Being real matters more than being simple — one vivid short sentence beats three flat ones.
+- 1–3 sentences per turn, like actual speech. No emoji, no asterisks, no stage directions.
 
 ${summary}${mission ? `
 
-ACTIVE SITUATION: the player has been sent to you with a task. ${mission.objective} If they accomplish it, go along with it naturally in character (hand over the goods, answer the question). Do not mention that this is a task or a game.` : ''}`
+SITUATION: this foreigner has been sent to you with an errand. ${mission.objective} If they manage it, respond naturally in character — hand the thing over, answer the question, react like it is a normal moment of your day. Never reveal this was arranged.` : ''}`
 }
 
 async function callGemini(r, text, key, mission) {
@@ -94,14 +105,35 @@ async function callGemini(r, text, key, mission) {
   return out.trim()
 }
 
-// scripted fallback so the town works with no key at all
-function scriptedReply(r, text) {
+// Scripted fallback for when there is no API key. Ordered most-specific first:
+// a greeting is the WEAKEST signal in a sentence, so it must be checked last,
+// otherwise "Hola, quiero tres plátanos" is answered as a bare "hola".
+function scriptedReply(r, text, mission) {
   const t = text.toLowerCase()
   const bank = r.fallback
-  if (/hola|buenas|buenos|buenas tardes/.test(t)) return bank.greet
+  const words = t.trim().split(/\s+/).filter(Boolean)
+
+  // 1. the active mission's objective — the whole point of the conversation
+  if (mission && mission.target === r.id && mission.check(text)) {
+    return mission.success || bank.default
+  }
+  // 2. an explicit request, even if it opens with a greeting
+  if (/quiero|quisiera|me da|dame|me pone|p[oó]ngame|necesito/.test(t)) {
+    return bank.request || bank.default
+  }
+  // 3. a question anywhere in the sentence
+  if (/\?/.test(text) || /^(qu[eé]|c[oó]mo|d[oó]nde|cu[aá]nto|cu[aá]ndo|por qu[eé]|qui[eé]n)/.test(t)) {
+    return bank.question
+  }
+  // 4. introductions
+  if (/me llamo|mi nombre|soy /.test(t)) return bank.intro || bank.default
   if (/gracias/.test(t)) return bank.thanks
-  if (/\?$/.test(text.trim())) return bank.question
-  if (t.split(/\s+/).length <= 2) return bank.short
+  // 5. bare greeting, only if that is genuinely all they said
+  if (/^(hola|buenas|buenos d[ií]as|buenas tardes|buenas noches)[\s!.,]*$/.test(t.trim())) {
+    return bank.greet
+  }
+  if (words.length <= 2) return bank.short
+  if (/hola|buenas|buenos/.test(t)) return bank.greet
   return bank.default
 }
 
@@ -114,12 +146,12 @@ export async function ask(r, text, mission) {
       reply = await callGemini(r, text, key, mission)
       source = 'gemini'
     } catch (e) {
-      reply = scriptedReply(r, text)
+      reply = scriptedReply(r, text, mission)
       source = 'error:' + e.message
     }
   } else {
     await new Promise(res => setTimeout(res, 380)) // let it feel like thinking
-    reply = scriptedReply(r, text)
+    reply = scriptedReply(r, text, mission)
     source = 'scripted'
   }
   remember(r.id, { p: text, r: reply })
@@ -129,7 +161,8 @@ export async function ask(r, text, mission) {
 
 // --- coach side-pane: English-first, mission-aware, always available --------
 export async function askCoach(text, mission, mstate) {
-  noteProduction(text)
+  // deliberately NOT noteProduction(): this pane is English, and the learner
+  // model must only ever count Spanish the player actually produced.
   const key = getKey()
   const sys = `You are Marco, the player's language coach in Pueblo, a Spanish coastal town where every other character speaks only Spanish. You are the ONE person who speaks English. Your job: help the player survive and learn — translate phrases they ask about, explain what someone probably meant, give them the exact Spanish sentence to try next, and encourage them to go say it out loud to a real resident. Keep replies short and practical (2-4 sentences). Never do a long grammar lecture.${mission ? `
 

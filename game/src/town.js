@@ -99,7 +99,7 @@ export const PLAZA_H = 0.22
 export function groundHeight(cx, cz) {
   if (cx < 0 || cz < 0 || cx >= COLS || cz >= ROWS) return 0
   const ch = grid[cz][cx]
-  if (ch === 'p' || ch === 'F') return PLAZA_H
+  if (ch === 'p' || ch === 'F' || ch === 'm' || ch === 'c') return PLAZA_H
   if (ch === 's') return PLAZA_H / 2
   if (ch === 'b') return -0.12
   if (ch === 'w') return -0.4

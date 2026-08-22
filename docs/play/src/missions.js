@@ -16,6 +16,7 @@ export const MISSIONS = [
     reward: { item: 'tres plátanos', repWith: 'pilar' },
     // offline heuristic when there is no API key
     check: (text) => /pl[aá]tano|banana/i.test(text) && /\btres\b|\b3\b/i.test(text),
+    success: '¡Marchando tres plátanos! Aquí tienes, cariño. Están dulcísimos, del Canario, ya me dirás.',
     hint: 'Try: "Hola, quiero tres plátanos, por favor."',
   },
   {
@@ -28,6 +29,7 @@ export const MISSIONS = [
     objective: 'The player must introduce themselves by name (e.g. "me llamo…", "soy…") AND ask for bread in some form.',
     reward: { item: 'una barra de pan', repWith: 'rosa' },
     check: (text) => /me llamo|soy |mi nombre/i.test(text) && /pan|barra/i.test(text),
+    success: '¡Encantada! Toma, una barra recién hecha. Y ahora ya sé tu nombre, no se me olvida.',
     hint: 'Try: "Hola, me llamo … Quiero pan, por favor."',
   },
   {
@@ -40,6 +42,7 @@ export const MISSIONS = [
     objective: 'The player must ask Doña Carmen a question about the noise (el ruido) or about what happened last night.',
     reward: { item: 'el chisme del barrio', repWith: 'carmen' },
     check: (text) => /ruido|anoche|noche|pas[oó]/i.test(text) && /\?/.test(text),
+    success: '¡Ay, por fin alguien pregunta! Los del tercero, hasta las tres de la mañana. Te lo cuento todo...',
     hint: 'Try: "¿Qué pasó anoche con el ruido?"',
   },
 ]

@@ -8,6 +8,7 @@ import { buildPerson, RESIDENTS } from './people.js'
 import { spawnAmbient, createSoundscape } from './ambient.js'
 import { ask, askCoach, getKey, setKey, forgetAll, learnerState } from './conversation.js'
 import { activeMission, missionFor, completeMission, missionState } from './missions.js'
+import * as tts from './tts.js'
 
 // ---------------------------------------------------------------------------
 // renderer / scene — Alba register: bright coastal morning, saturated, soft
@@ -210,11 +211,13 @@ function openConvo(r) {
   panel.classList.remove('hidden')
   talkPrompt.classList.add('hidden')
   cvStatus.textContent = getKey() ? '' : 'sin clave · respuestas limitadas'
+  tts.speak(r.opener, r.id)
   setTimeout(() => cvInput.focus(), 60)
   r.group.userData.turnTo = player.position.clone()
 }
 
 function closeConvo() {
+  tts.stop()
   talking = null
   panel.classList.add('hidden')
   cvInput.blur()
@@ -234,7 +237,11 @@ async function send() {
     const { reply, source } = await ask(r, text, m)
     if (talking !== r) return
     pending.remove()
-    addLine(cvLog, '', reply, 'them')
+    const line = addLine(cvLog, '', reply, 'them')
+    tts.speak(reply, r.id)
+    line.title = 'clic para repetir'
+    line.style.cursor = 'pointer'
+    line.addEventListener('click', () => tts.speak(reply, r.id))
     if (source.startsWith('error:')) cvStatus.textContent = 'API: ' + source.slice(6, 90)
     else if (source === 'scripted') cvStatus.textContent = 'sin clave · respuestas limitadas'
     else {
@@ -274,13 +281,19 @@ el('cv-translate').classList.toggle('on', showTranslation)
 // ---------------------------------------------------------------------------
 // coach pane (right side, toggle any time)
 // ---------------------------------------------------------------------------
-function coachSay(text) {
-  addLine(coachLog, 'marco', text, 'them coach-line')
+function coachSay(text, speak = true) {
+  const line = addLine(coachLog, 'marco', text, 'them coach-line')
+  if (speak) tts.speak(text, 'coach')
+  line.style.cursor = 'pointer'
+  line.title = 'click to replay'
+  line.addEventListener('click', () => tts.speak(text, 'coach'))
+  return line
 }
 
 function toggleCoach(force) {
   const show = force !== undefined ? force : coachPane.classList.contains('hidden')
   coachPane.classList.toggle('hidden', !show)
+  document.body.classList.toggle('coach-open', show)
   el('coach-toggle').classList.toggle('on', show)
   if (show) setTimeout(() => coachInput.focus(), 60)
   else coachInput.blur()
@@ -338,6 +351,13 @@ el('mute').addEventListener('click', () => {
   el('mute').textContent = sound.toggleMute() ? 'sonido ✕' : 'sonido ✓'
 })
 el('mute').textContent = sound.isMuted() ? 'sonido ✕' : 'sonido ✓'
+el('voice').addEventListener('click', () => {
+  const on = tts.toggle()
+  el('voice').textContent = on ? 'voz ✓' : 'voz ✕'
+  el('voice').classList.toggle('on', on)
+})
+el('voice').textContent = tts.isEnabled() ? 'voz ✓' : 'voz ✕'
+el('voice').classList.toggle('on', tts.isEnabled())
 
 // global keys
 window.addEventListener('keydown', e => {
@@ -360,11 +380,12 @@ window.addEventListener('resize', () => {
 // ---------------------------------------------------------------------------
 const clock = new THREE.Clock()
 let bob = 0
+let simTime = 0
 const clockEl = el('clock')
 
-function tick() {
-  const dt = Math.min(clock.getDelta(), 0.05)
-  const t = clock.elapsedTime
+function step(dt) {
+  simTime += dt
+  const t = simTime
 
   if (!talking) {
     if (keys.has('w') || keys.has('arrowup')) tryStep(0, -1)
@@ -456,9 +477,61 @@ function tick() {
   const mins = 10 * 60 + 30 + Math.floor(t * 2)
   clockEl.textContent = `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
 
+}
+
+function tick() {
+  const dt = Math.min(clock.getDelta(), 0.05)
+  step(dt)
   composer.render()
   requestAnimationFrame(tick)
 }
 tick()
 
-window.__game = { renderer, scene, camera, player, RESIDENTS, composer }
+// --- debug / playtest harness ----------------------------------------------
+// The loop is driven by rAF normally, but `step` can be called directly so the
+// whole game can be played without a compositing window.
+window.__game = { renderer, scene, camera, player, RESIDENTS, composer, step }
+window.__test = {
+  step,
+  pos,
+  getNearby: () => nearby && nearby.id,
+  getTalking: () => talking && talking.id,
+  press: k => keys.add(k),
+  release: k => keys.delete(k),
+  openConvo, closeConvo, send, toggleCoach, sendCoach,
+  setInput: v => { cvInput.value = v },
+  setCoachInput: v => { coachInput.value = v },
+  logText: () => [...cvLog.querySelectorAll('.cv-line')].map(e => e.textContent),
+  coachText: () => [...coachLog.querySelectorAll('.cv-line')].map(e => e.textContent),
+  missionCard: () => missionCard.textContent,
+  promptText: () => talkPrompt.classList.contains('hidden') ? null : talkPrompt.textContent,
+  toastText: () => toast.classList.contains('hidden') ? null : toast.textContent,
+  // walk the grid with BFS — also proves the town is actually traversable
+  walkTo(tx, tz, maxSteps = 4000) {
+    const key = (x, z) => x + ',' + z
+    const q = [[pos.x, pos.z]]
+    const prev = new Map([[key(pos.x, pos.z), null]])
+    while (q.length) {
+      const [x, z] = q.shift()
+      if (x === tx && z === tz) break
+      for (const [dx, dz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        const nx = x + dx, nz = z + dz
+        if (!isWalkable(nx, nz) || occupied(nx, nz)) continue
+        if (prev.has(key(nx, nz))) continue
+        prev.set(key(nx, nz), [x, z])
+        q.push([nx, nz])
+      }
+    }
+    if (!prev.has(key(tx, tz))) return { ok: false, reason: 'unreachable' }
+    const path = []
+    let cur = [tx, tz]
+    while (cur) { path.unshift(cur); cur = prev.get(key(cur[0], cur[1])) }
+    let steps = 0
+    for (let i = 1; i < path.length; i++) {
+      const [nx, nz] = path[i]
+      tryStep(nx - pos.x, nz - pos.z)
+      while (moveT < 1 && steps++ < maxSteps) step(0.05)
+    }
+    return { ok: pos.x === tx && pos.z === tz, tiles: path.length - 1, at: [pos.x, pos.z] }
+  },
+}

@@ -123,10 +123,12 @@ export function spawnAmbient(scene, occupiedTiles) {
       }
     }
     cats.forEach((c, i) => {
-      c.children[3].rotation.z = -1.1 + Math.sin(time * 1.4 + i * 2) * 0.25
+      const tail = c.children[4]
+      if (tail) tail.rotation.z = -1.1 + Math.sin(time * 1.4 + i * 2) * 0.25
     })
     gulls.forEach((g, i) => {
-      g.position.y += Math.sin(time * 2.2 + i * 1.9) * 0.0015
+      if (g.userData.baseY === undefined) g.userData.baseY = g.position.y
+      g.position.y = g.userData.baseY + Math.sin(time * 2.2 + i * 1.9) * 0.04
       if (Math.sin(time * 0.7 + i * 3.1) > 0.995) g.rotation.y += 0.8
     })
   }
