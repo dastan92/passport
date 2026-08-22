@@ -484,3 +484,131 @@ body.coach-open #toast { left: calc(50% - 10.5rem); }
   margin-top: 0.2rem;
 }
 /* ================================================= END LEVEL LAYER (map) === */
+
+
+/* ---------------------------------------------------------------- title --- */
+#title {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 30%, rgba(90, 60, 20, 0.25), transparent 65%),
+    linear-gradient(180deg, #1a140d 0%, #241b11 55%, #17110a 100%);
+}
+.title-box {
+  width: min(36rem, calc(100% - 2rem)); text-align: center; color: var(--paper);
+  animation: introIn 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.title-word {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: clamp(2.4rem, 8vw, 4rem); letter-spacing: 0.42em;
+  padding-left: 0.42em; /* optical centering against the tracking */
+  color: var(--accent);
+  text-shadow: 0 0 34px rgba(232, 178, 92, 0.35);
+}
+.title-sub { color: var(--muted); font-style: italic; margin: 0.4rem 0 1.6rem; }
+#title-characters {
+  display: flex; flex-direction: column; gap: 0.5rem;
+  max-height: 40vh; overflow-y: auto; margin-bottom: 1.2rem;
+  scrollbar-width: thin;
+}
+.char-card {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(247, 239, 224, 0.06); border: 1px solid var(--line);
+  border-radius: 10px; padding: 0.7rem 1rem; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s; text-align: left;
+}
+.char-card:hover { background: rgba(247, 239, 224, 0.11); border-color: var(--accent); }
+.char-name { font-weight: 600; font-size: 1.05rem; }
+.char-meta {
+  font-family: ui-monospace, Consolas, monospace; font-size: 0.62rem;
+  letter-spacing: 0.08em; color: var(--muted); margin-top: 0.15rem;
+}
+.char-actions { display: flex; gap: 0.3rem; }
+.char-actions .chip { font-size: 0.6rem; padding: 0.25rem 0.55rem; }
+.title-new { display: flex; gap: 0.5rem; justify-content: center; }
+#title-name {
+  flex: 1; max-width: 16rem; background: rgba(247, 239, 224, 0.07);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 0.55rem 0.8rem; color: var(--paper); font-family: inherit; font-size: 1rem;
+}
+#title-name:focus { outline: none; border-color: var(--accent); }
+.title-foot {
+  margin-top: 1.4rem; display: flex; align-items: center;
+  justify-content: center; gap: 1rem;
+}
+.title-hint {
+  font-family: ui-monospace, Consolas, monospace; font-size: 0.6rem;
+  letter-spacing: 0.12em; color: rgba(247, 239, 224, 0.35);
+}
+
+
+/* ------------------------------------------------------------- bus route --- */
+#map-route { border-top: 1px solid var(--line); padding: 0.7rem 1rem 0.9rem; }
+#route-label {
+  font-family: ui-monospace, Consolas, monospace; font-size: 0.58rem;
+  letter-spacing: 0.2em; color: var(--accent); margin-bottom: 0.55rem;
+}
+#route-strip {
+  display: flex; align-items: center; gap: 0;
+  overflow-x: auto; padding-bottom: 0.2rem;
+}
+.route-stop {
+  flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;
+  min-width: 3.6rem; cursor: pointer; border: none; background: none;
+  color: var(--paper); padding: 0;
+}
+.route-stop .rs-dot {
+  width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  border: 2px solid var(--line); background: rgba(247,239,224,0.08);
+  display: flex; align-items: center; justify-content: center;
+  font-family: ui-monospace, Consolas, monospace; font-size: 0.7rem;
+  transition: border-color 0.15s, background 0.15s;
+}
+.route-stop.done .rs-dot { border-color: var(--accent); background: var(--accent); color: #2b2119; }
+.route-stop.current .rs-dot { border-color: var(--accent); animation: pulse 1s infinite alternate; }
+.route-stop.locked { cursor: default; opacity: 0.4; }
+.route-stop:not(.locked):hover .rs-dot { border-color: var(--accent); }
+.route-stop .rs-name {
+  font-size: 0.55rem; font-family: ui-monospace, Consolas, monospace;
+  letter-spacing: 0.05em; color: var(--muted); margin-top: 0.3rem;
+  max-width: 4.6rem; text-align: center; line-height: 1.25;
+}
+.route-link { flex: 0 0 auto; width: 1.4rem; height: 2px; background: var(--line); margin-bottom: 1.1rem; }
+.route-link.done { background: var(--accent); }
+
+/* -------------------------------------------------------------- bus ride --- */
+#bus-ride {
+  position: fixed; inset: 0; z-index: 45;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(20, 14, 8, 0.92);
+  animation: fadeIn 0.3s ease-out;
+}
+.bus-card { text-align: center; color: var(--paper); }
+.bus-icon { font-size: 3rem; animation: busBounce 0.7s infinite alternate ease-in-out; }
+@keyframes busBounce { from { transform: translateX(-14px) rotate(-2deg); } to { transform: translateX(14px) rotate(2deg); } }
+#bus-text { margin-top: 0.8rem; font-style: italic; color: var(--muted); }
+
+/* ------------------------------------------------------------------ pause --- */
+#pause {
+  position: fixed; inset: 0; z-index: 35;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(20, 14, 8, 0.6); backdrop-filter: blur(4px);
+}
+.pause-box {
+  display: flex; flex-direction: column; gap: 0.6rem; align-items: stretch;
+  background: var(--panel-solid); border: 1px solid var(--line);
+  border-radius: 14px; padding: 1.6rem 2rem; width: min(20rem, 90vw);
+  text-align: center;
+}
+.pause-title {
+  font-family: ui-monospace, Consolas, monospace; letter-spacing: 0.35em;
+  color: var(--accent); font-size: 0.8rem; margin-bottom: 0.4rem;
+}
+.pause-box .chip { font-size: 0.75rem; padding: 0.55rem 1rem; }
+.pause-row { display: flex; gap: 0.4rem; justify-content: center; }
+.pause-row .chip { font-size: 0.62rem; }
+.pause-credits {
+  margin-top: 0.6rem; font-size: 0.58rem; line-height: 1.6;
+  font-family: ui-monospace, Consolas, monospace;
+  color: rgba(247, 239, 224, 0.35);
+}

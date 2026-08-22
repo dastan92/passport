@@ -5,6 +5,9 @@ import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
 import { PLAYER_SPAWN } from './worldspec.js'
+import { listCharacters, activeCharacter, createCharacter, switchCharacter,
+         deleteCharacter, exportCharacter, importCharacter, saveActive,
+         migrateLegacySave } from './profiles.js'
 import { buildTown, isWalkable, tileToWorld, groundHeight, PLAZA_H, COLS, ROWS, TILE } from './town.js'
 import { createController } from './movement.js'
 import { buildPerson, RESIDENTS } from './people.js'
@@ -14,7 +17,7 @@ import { activeMission, missionFor, completeMission, missionState, MISSIONS, res
 import * as tts from './tts.js'
 import { tryReveal, factsHeldBy, knownFacts, resetKnowledge, has as hasFact } from './knowledge.js'
 // === LEVEL LAYER — imports (owned by progression.js work) ===================
-import { currentLevel, unlockedDistricts, isDistrictOpen, isTileOpen, missionUnlocked, levelProgress, onMissionComplete, resetProgression } from './progression.js'
+import { currentLevel, unlockedDistricts, isDistrictOpen, isTileOpen, missionUnlocked, levelProgress, onMissionComplete, resetProgression, isLevelComplete } from './progression.js'
 import { LEVELS } from './levelspec.js'
 import { DISTRICTS, CAST, castTile } from './worldspec.js'
 import { barrel, signboard, seeded, mat } from './kit.js'
@@ -313,6 +316,8 @@ function renderPatience() {
 let showTranslation = localStorage.getItem('passport_tr') === '1'
 
 function uiFocused() {
+  if (!document.getElementById('title').classList.contains('hidden')) return true
+  if (typeof paused !== 'undefined' && paused) return true
   // LEVEL LAYER: the map screen pauses input exactly like a focused panel
   return mapOpen || [cvInput, keyInput, coachInput].includes(document.activeElement)
 }
@@ -664,9 +669,100 @@ coachInput.addEventListener('keydown', e => {
   if (e.key === 'Escape') toggleCoach(false)
 })
 
-// first-run: arrival sequence
+// ---------------------------------------------------------------------------
+// title screen: characters as passports. The world only starts once a
+// character is chosen; a brand-new character then gets the arrival intro.
+// ---------------------------------------------------------------------------
+const titleEl = document.getElementById('title')
+migrateLegacySave()
+
+function fmtAgo(t) {
+  const m = Math.round((Date.now() - t) / 60000)
+  if (m < 2) return 'abhi'
+  if (m < 60) return m + ' min pehle'
+  const h = Math.round(m / 60)
+  if (h < 48) return h + ' ghante pehle'
+  return Math.round(h / 24) + ' din pehle'
+}
+
+function renderTitle() {
+  const wrap = document.getElementById('title-characters')
+  wrap.innerHTML = ''
+  for (const c of listCharacters().sort((a, b) => b.lastPlayed - a.lastPlayed)) {
+    const card = document.createElement('div')
+    card.className = 'char-card'
+    const sm = c.summary || {}
+    card.innerHTML =
+      `<div><div class="char-name">${c.name}</div>` +
+      `<div class="char-meta">level ${sm.level || 1} · ✦ ${sm.stamps || 0} · ${sm.words || 0} shabd · ${fmtAgo(c.lastPlayed)}</div></div>`
+    const actions = document.createElement('div')
+    actions.className = 'char-actions'
+    const ex = document.createElement('button')
+    ex.className = 'chip'; ex.textContent = '⬇'; ex.title = 'download passport (backup)'
+    ex.addEventListener('click', e => {
+      e.stopPropagation()
+      const json = exportCharacter(c.id)
+      if (!json) return
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
+      a.download = 'passport-' + c.name.toLowerCase().replace(/\s+/g, '-') + '.json'
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000)
+    })
+    const del = document.createElement('button')
+    del.className = 'chip danger'; del.textContent = '✕'; del.title = 'delete character'
+    del.addEventListener('click', e => {
+      e.stopPropagation()
+      if (confirm(c.name + ' ka passport hamesha ke liye delete karein?')) {
+        deleteCharacter(c.id); renderTitle()
+      }
+    })
+    actions.append(ex, del)
+    card.appendChild(actions)
+    card.addEventListener('click', () => {
+      switchCharacter(c.id)
+      location.reload()   // clean world rebuild on the selected save
+    })
+    wrap.appendChild(card)
+  }
+}
+
+document.getElementById('chars').addEventListener('click', () => {
+  saveActive()
+  titleEl.classList.remove('hidden')
+  renderTitle()
+})
+
+document.getElementById('title-create').addEventListener('click', () => {
+  const name = document.getElementById('title-name').value.trim()
+  if (!name) { document.getElementById('title-name').focus(); return }
+  createCharacter(name)
+  location.reload()
+})
+document.getElementById('title-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('title-create').click()
+})
+document.getElementById('title-import').addEventListener('click', () =>
+  document.getElementById('title-import-file').click())
+document.getElementById('title-import-file').addEventListener('change', async e => {
+  const f = e.target.files[0]
+  if (!f) return
+  const id = importCharacter(await f.text())
+  if (id) renderTitle()
+  else alert('Yeh passport file nahi hai.')
+})
+
+// autosave the active character: every 20s and on the way out the door
+setInterval(saveActive, 20000)
+window.addEventListener('beforeunload', saveActive)
+
 const introEl = document.getElementById('intro')
-if (!localStorage.getItem('passport_welcomed')) {
+if (!activeCharacter()) {
+  // no character chosen: the title screen owns the boot
+  titleEl.classList.remove('hidden')
+  renderTitle()
+  introEl.classList.add('hidden')
+} else if (!localStorage.getItem('passport_welcomed')) {
   introEl.classList.remove('hidden')
   document.getElementById('intro-start').addEventListener('click', () => {
     localStorage.setItem('passport_welcomed', '1')
@@ -933,7 +1029,90 @@ function renderMap(justUnlocked) {
   dot.style.left = ((pos.x + 0.5) * px) + '%'
   dot.style.top = ((pos.z + 0.5) * pz) + '%'
   mapGrid.appendChild(dot)
+
+  // --- the bus route: ten stops, Overcooked-style. Click an unlocked stop
+  // and Rafa's bus takes you to that level's district.
+  const strip = el('route-strip')
+  strip.innerHTML = ''
+  LEVELS.forEach((l, i) => {
+    if (i > 0) {
+      const link = document.createElement('div')
+      link.className = 'route-link' + (isLevelComplete(i - 1) ? ' done' : '')
+      strip.appendChild(link)
+    }
+    const open = i <= lv.index
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'route-stop' + (isLevelComplete(i) ? ' done' : '') +
+      (i === lv.index ? ' current' : '') + (open ? '' : ' locked')
+    const p = levelProgress(i)
+    b.innerHTML = '<div class="rs-dot">' + (isLevelComplete(i) ? '✦' : (open ? (i + 1) : '🔒')) + '</div>' +
+      '<div class="rs-name">' + l.name + (open && p.total ? '<br>' + p.done + '/' + p.total : '') + '</div>'
+    b.title = open ? (l.nameEn + ' — bus se jao') : 'abhi band hai'
+    if (open) b.addEventListener('click', () => rideBusTo(i))
+    strip.appendChild(b)
+  })
 }
+
+// -----------------------------------------------------------------------
+// the bus: fast travel between unlocked levels' districts. Diegetic — it is
+// Rafa's coast bus, and the ride overlay says where you are going.
+// -----------------------------------------------------------------------
+const BUS_STOPS = {   // a walkable tile near each district's heart
+  plaza:   [40, 33], barrio: [37, 16], iglesia: [16, 16],
+  mercado: [60, 30], puerto: [30, 44], afueras: [16, 30],
+}
+function rideBusTo(levelIndex) {
+  const l = LEVELS[levelIndex]
+  const stop = BUS_STOPS[l.district] || BUS_STOPS.plaza
+  closeMap()
+  const ride = el('bus-ride')
+  el('bus-text').textContent = 'bus chal padi — ' + (DISTRICTS[l.district]?.name || 'Pueblo') + ' ki taraf…'
+  ride.classList.remove('hidden')
+  sound.duck(true)
+  setTimeout(() => {
+    // find a walkable tile at/near the stop and step off
+    let [bx, bz] = stop
+    outer: for (let r = 0; r < 4; r++) {
+      for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+        if (gatedWalkable(bx + dx, bz + dz)) { bx += dx; bz += dz; break outer }
+      }
+    }
+    controller.teleportToTile(bx, bz)
+    pos.x = bx; pos.z = bz
+    ride.classList.add('hidden')
+    sound.duck(false)
+    showToast('agla stop: ' + (DISTRICTS[l.district]?.name || 'Pueblo'), l.name)
+  }, 1400)
+}
+
+// -----------------------------------------------------------------------
+// pause menu (Esc when nothing else is open) — the last piece of the shell
+// -----------------------------------------------------------------------
+const pauseEl = el('pause')
+let paused = false
+function setPaused(p) {
+  paused = p
+  pauseEl.classList.toggle('hidden', !p)
+  if (p) {
+    const row = el('pz-toggles')
+    row.innerHTML = ''
+    for (const id of ['voice', 'mute', 'model']) {
+      const src = el(id === 'mute' ? 'mute' : id)
+      if (!src) continue
+      const c = document.createElement('button')
+      c.className = 'chip' + (src.classList.contains('on') ? ' on' : '')
+      c.textContent = src.textContent
+      c.addEventListener('click', () => { src.click(); c.textContent = src.textContent })
+      row.appendChild(c)
+    }
+  }
+}
+el('pz-resume').addEventListener('click', () => setPaused(false))
+el('pz-map').addEventListener('click', () => { setPaused(false); openMap() })
+el('pz-chars').addEventListener('click', () => {
+  setPaused(false); saveActive(); titleEl.classList.remove('hidden'); renderTitle()
+})
 
 function openMap(auto) {
   if (talking) return
@@ -954,7 +1133,9 @@ el('map-close').addEventListener('click', closeMap)
 mapScreen.addEventListener('click', e => { if (e.target === mapScreen) closeMap() })
 window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase()
+  if (paused && k === 'escape') { e.preventDefault(); setPaused(false); return }
   if (mapOpen && (k === 'm' || k === 'escape')) { e.preventDefault(); closeMap(); return }
+  if (!paused && !mapOpen && !talking && !uiFocused() && k === 'escape') { e.preventDefault(); setPaused(true); return }
   if (!mapOpen && !talking && !uiFocused() && k === 'm') openMap()
 })
 

@@ -20,6 +20,7 @@
         <button id="voice" class="chip">voice ✓</button>
         <button id="mute" class="chip">sound ✓</button>
         <button id="key-open" class="chip">API</button>
+        <button id="chars" class="chip" title="switch character">passport</button>
         <button id="coach-toggle" class="chip">coach · C</button>
         <button id="model" class="chip" title="switch model">lite</button>
         <span id="cost" title="API spend this session">$0.0000</span>
@@ -86,6 +87,24 @@
       </div>
     </div>
 
+    <div id="title" class="hidden">
+      <div class="title-box">
+        <div class="title-word">PASSPORT</div>
+        <div class="title-sub">ek sheher jahan sab Hindi bolte hain</div>
+        <div id="title-characters"></div>
+        <div class="title-new">
+          <input id="title-name" type="text" maxlength="24" autocomplete="off"
+                 placeholder="naya naam likho…" />
+          <button id="title-create" class="chip primary">naya passport</button>
+        </div>
+        <div class="title-foot">
+          <button id="title-import" class="chip">import</button>
+          <input id="title-import-file" type="file" accept=".json" class="hidden" />
+          <span class="title-hint">WASD move · E talk · C coach · M map</span>
+        </div>
+      </div>
+    </div>
+
     <div id="intro" class="hidden">
       <div class="intro-box">
         <div class="intro-label">PASSPORT</div>
@@ -109,7 +128,29 @@
           <button id="map-close" class="chip">✕</button>
         </div>
         <div id="map-grid"></div>
+        <div id="map-route">
+          <div id="route-label">BUS ROUTE — Rafa ki gaadi</div>
+          <div id="route-strip"></div>
+        </div>
         <div id="map-hint">M / Esc — band karo · 🔒 abhi band hai · ★ abhi ka kaam · ● tum</div>
+      </div>
+    </div>
+
+    <div id="bus-ride" class="hidden">
+      <div class="bus-card">
+        <div class="bus-icon">🚌</div>
+        <div id="bus-text">bus chal padi…</div>
+      </div>
+    </div>
+
+    <div id="pause" class="hidden">
+      <div class="pause-box">
+        <div class="pause-title">PAUSE</div>
+        <button class="chip primary" id="pz-resume">wapas khelo</button>
+        <button class="chip" id="pz-map">route map · M</button>
+        <button class="chip" id="pz-chars">passport badlo</button>
+        <div class="pause-row" id="pz-toggles"></div>
+        <div class="pause-credits">music: Kevin MacLeod &amp; Scott Buckley (CC-BY 4.0) · characters: Quaternius (CC0) · a game about living in a language</div>
       </div>
     </div>
 
