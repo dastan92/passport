@@ -316,9 +316,28 @@ function closeConvo() {
   keys.clear()
 }
 
+let sendBusy = false
 async function send() {
   const text = cvInput.value.trim()
   if (!text || !talking) return
+  // A second send while one is in flight used to reach the re-entrancy guard
+  // and render its empty reply as a blank bubble. Lock the input instead, so
+  // the state is visible rather than silently swallowed.
+  if (sendBusy) return
+  sendBusy = true
+  cvInput.disabled = true
+  el('cv-send').disabled = true
+  try {
+    await _send(text)
+  } finally {
+    sendBusy = false
+    cvInput.disabled = false
+    el('cv-send').disabled = false
+    if (talking) cvInput.focus()
+  }
+}
+
+async function _send(text) {
   cvInput.value = ''
   addLine(cvLog, 'tú', text, 'me')
   const pending = addLine(cvLog, '', '···', 'them pending')
@@ -344,6 +363,10 @@ async function send() {
     const { reply, source } = await ask(r, text, m, extra)
     if (talking !== r) return
     pending.remove()
+    if (!reply || !reply.trim()) {
+      cvStatus.textContent = source === 'busy' ? '' : 'koi jawab nahi aaya — phir se bolo'
+      return
+    }
     const line = addLine(cvLog, '', reply, 'them')
     tts.speak(reply, r.id)
     line.title = 'clic para repetir'
