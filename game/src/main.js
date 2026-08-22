@@ -5,6 +5,7 @@ import { RenderPass } from '../vendor/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from '../vendor/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from '../vendor/jsm/postprocessing/OutputPass.js'
 import { PLAYER_SPAWN } from './worldspec.js'
+import { currentLang, langMeta } from './lang.js'
 import { listCharacters, activeCharacter, createCharacter, switchCharacter,
          deleteCharacter, exportCharacter, importCharacter, saveActive,
          migrateLegacySave } from './profiles.js'
@@ -693,7 +694,7 @@ function renderTitle() {
     card.className = 'char-card'
     const sm = c.summary || {}
     card.innerHTML =
-      `<div><div class="char-name">${c.name}</div>` +
+      `<div><div class="char-name">${c.name}<span class="char-lang">${(c.lang || 'hi').toUpperCase()}</span></div>` +
       `<div class="char-meta">level ${sm.level || 1} · ✦ ${sm.stamps || 0} · ${sm.words || 0} shabd · ${fmtAgo(c.lastPlayed)}</div></div>`
     const actions = document.createElement('div')
     actions.className = 'char-actions'
@@ -733,10 +734,15 @@ document.getElementById('chars').addEventListener('click', () => {
   renderTitle()
 })
 
+let pickedLang = 'hi'
+document.querySelectorAll('.lang-pick').forEach(b => b.addEventListener('click', () => {
+  pickedLang = b.dataset.lang
+  document.querySelectorAll('.lang-pick').forEach(x => x.classList.toggle('on', x === b))
+}))
 document.getElementById('title-create').addEventListener('click', () => {
   const name = document.getElementById('title-name').value.trim()
   if (!name) { document.getElementById('title-name').focus(); return }
-  createCharacter(name)
+  createCharacter(name, pickedLang)
   location.reload()
 })
 document.getElementById('title-name').addEventListener('keydown', e => {

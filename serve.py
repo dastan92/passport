@@ -56,12 +56,14 @@ def _wav(pcm, rate=24000):
             + b"data" + struct.pack("<I", len(pcm)) + pcm)
 
 
-def gemini_tts(text, resident):
+def gemini_tts(text, resident, lang="hi"):
     """Returns (wav_bytes, note) or (None, reason)."""
     key = ENV.get("GEMINI_API_KEY")
     if not key:
         return None, "no gemini key"
     voice, style = GEMINI_VOICES.get(resident, ("Charon", "Speak naturally"))
+    if lang == "es":
+        style = style.replace("Indian", "Spanish")
     body = {
         "contents": [{"parts": [{"text": f"{style}: {text}"}]}],
         "generationConfig": {
@@ -256,7 +258,7 @@ def _fish_request(key, text, voice, prosody):
         return None, f"unreachable: {e}"
 
 
-def synthesize(text, resident):
+def synthesize(text, resident, lang="hi"):
     """-> (audio_bytes|None, source_string). source doubles as the error.
 
     Gemini TTS is tried first: its prebuilt voices are professional (no
@@ -264,14 +266,15 @@ def synthesize(text, resident):
     takes a per-character style prompt — which is how Marco gets an Indian
     English coach read. Fish is the fallback, browser speech the last resort.
     """
-    prefer_gemini = (resident == "coach") or not ENV.get("FISH_API_KEY")
+    # Spanish characters skip Fish entirely: its cast is Hindi-native voices.
+    prefer_gemini = (resident == "coach") or (lang == "es") or not ENV.get("FISH_API_KEY")
     if ENV.get("GEMINI_API_KEY") and prefer_gemini:
-        gsig = "gem2|" + resident + "|" + text
+        gsig = "gem2|" + lang + "|" + resident + "|" + text
         gpath = os.path.join(CACHE, hashlib.sha1(gsig.encode()).hexdigest() + ".wav")
         if os.path.exists(gpath):
             with open(gpath, "rb") as f:
                 return f.read(), "cache"
-        audio, note = gemini_tts(text, resident)
+        audio, note = gemini_tts(text, resident, lang)
         if audio is not None:
             os.makedirs(CACHE, exist_ok=True)
             with open(gpath, "wb") as f:
@@ -281,12 +284,12 @@ def synthesize(text, resident):
 
     key = ENV.get("FISH_API_KEY")
     if not key and ENV.get("GEMINI_API_KEY") and not prefer_gemini:
-        gsig = "gem2|" + resident + "|" + text
+        gsig = "gem2|" + lang + "|" + resident + "|" + text
         gpath = os.path.join(CACHE, hashlib.sha1(gsig.encode()).hexdigest() + ".wav")
         if os.path.exists(gpath):
             with open(gpath, "rb") as f:
                 return f.read(), "cache"
-        audio, note = gemini_tts(text, resident)
+        audio, note = gemini_tts(text, resident, lang)
         if audio is not None:
             os.makedirs(CACHE, exist_ok=True)
             with open(gpath, "wb") as f:
@@ -447,13 +450,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             data = json.loads(self.rfile.read(length))
             text = str(data.get("text", ""))[:600]
             resident = str(data.get("resident", ""))
+            lang = "es" if data.get("lang") == "es" else "hi"
         except Exception:
             self.send_error(400)
             return
         if not text.strip():
             self.send_error(400)
             return
-        audio, source = synthesize(text, resident)
+        audio, source = synthesize(text, resident, lang)
         if audio is not None:
             SPEND["tts"]["calls"] += 1
             if source == "cache":

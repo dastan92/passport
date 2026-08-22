@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 import { factsHeldBy } from './knowledge.js'
+import { currentLang, langMeta, tr, trRe } from './lang.js'
 
 const MODEL = 'gemini-3.5-flash-lite'
 const ENDPOINT = m => `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`
@@ -233,7 +234,7 @@ export async function judgeMission(r, mission, playerText) {
   const sys = 'You judge whether a language learner achieved a goal over the course of a conversation. ' +
     'Answer with exactly one word: YES or NO. Nothing else.'
   const q = [
-    'GOAL: ' + mission.objective,
+    'GOAL: ' + tr(mission.objective),
     'EVERYTHING THE LEARNER HAS SAID TO YOU IN THIS CONVERSATION, in order: ' + numbered,
     replies ? 'Your own replies, for context: ' + replies : '',
     'Their grammar does not need to be correct and their spelling may be rough.',
@@ -272,7 +273,7 @@ export async function openingLine(r) {
     last
       ? 'Someone you have met before has just walked up to you again.'
       : 'A foreigner you have never spoken to has just walked up to you. Word went round that someone new arrived in town.',
-    'Greet them in ONE short sentence of romanized Hindi (Latin letters, never Devanagari).',
+    'Greet them in ONE short sentence of ${langMeta().name} (Latin script only).',
     last
       ? 'React to the fact that they are BACK - do not use a generic opening line, and do not repeat what you said last time.'
       : 'Open the way YOU would, mid-task, in your own voice - curious, wary, busy, whatever fits you. Not a neutral hello.',
@@ -448,15 +449,15 @@ ${r.persona}
 ${r.backstory ? `Your life: ${r.backstory}\n` : ''}${r.goal ? `What you want: ${r.goal}\n` : ''}${r.relationships ? `Your people: ${r.relationships}\n` : ''}${r.doing ? `Right now: ${r.doing}.\n` : ''}${r.agenda ? `On your mind today: ${r.agenda}.` : ''}
 
 THEM
-A foreigner learning Hindi, roughly ${learner.level}. ${whoTheyAre()} ${history}${impressionOf(r.id) && impressionOf(r.id).note ? `\nWhat you already think of them: ${impressionOf(r.id).note}` : ''}
+A foreigner learning ${langMeta().name}, roughly ${learner.level}. ${whoTheyAre()} ${history}${impressionOf(r.id) && impressionOf(r.id).note ? `\nWhat you already think of them: ${impressionOf(r.id).note}` : ''}
 
 HOW YOU TALK
-- Romanized Hindi: Latin letters, never Devanagari. Write "Main theek hoon, aur tum?" — never the Devanagari form. Simple consistent spellings a learner can read aloud. Everyday speech: arre, beta, bhai, yaar, haan, uff.
+- ${langMeta().speakRule}
 - 1 to 3 short sentences, and nothing else. No emoji, no asterisks, no stage directions, no grammar lessons, no explaining what you just said.
 - Match their level and push it one small step. One vivid short sentence beats three flat ones.
 - Money here is euros, never rupees.
-- Names of people and places stay as they are, but every ordinary word is Hindi: say "kele", never "platanos"; "machhli", never "pescado".
-- You do not know whether they are a man or a woman, so do not flip between karte ho and karti ho inside one breath. Pick the plain form and stay with it.
+- Names of people and places stay as they are, but every ordinary word is ${langMeta().name}.
+- You do not know whether they are a man or a woman, so where the language genders verbs or adjectives about THEM, pick one plain form and stay with it.
 
 HOW YOU BEHAVE
 - You are a person with a day, not an assistant. You have opinions and you say them. Disagree, tease, complain, exaggerate, refuse, get distracted, cut things short when you are busy.
@@ -484,7 +485,7 @@ function coachInStreetPrompt(r, mission, extra = {}) {
   return `You are Marco, 35, the one person in Pueblo who speaks English. You coach newcomers through their first weeks. ${r.backstory}
 
 THEM
-A foreigner learning Hindi, roughly ${learner.level}. ${whoTheyAre()} ${past.length ? `You have talked ${past.length} times already.` : 'This is your first proper conversation.'} They are TYPING to you, not speaking aloud — never comment on how their voice sounded, their accent, or their pronunciation, because you cannot hear it.
+A foreigner learning ${langMeta().name}, roughly ${learner.level}. ${whoTheyAre()} ${past.length ? `You have talked ${past.length} times already.` : 'This is your first proper conversation.'} They are TYPING to you, not speaking aloud — never comment on how their voice sounded, their accent, or their pronunciation, because you cannot hear it.
 
 EVERYONE WHO LIVES HERE — these are the ONLY people in Pueblo. Never invent a resident, a shop, or a stall; sending them to someone who does not exist is the worst thing you can do to them.
 - Pilar: fruit stall on the east side of the plaza
@@ -511,7 +512,7 @@ Give them THAT sentence when they need a phrase. Never invent a different errand
 They have no errand outstanding. Suggest someone worth talking to and give them an opening line.`}
 
 HOW YOU TALK
-- English, warm and direct, plus the exact romanized Hindi they should say (Latin letters, e.g. "mujhe teen kele chahiye" — never Devanagari).
+- English, warm and direct, plus the exact ${langMeta().name} sentence they should say (${langMeta().coachPhraseNote}).
 - 1 to 3 sentences. No emoji, no asterisks, no stage directions, no grammar lectures.
 - Encouraging. You can be dry or funny, but never dismissive, never insulting, and never refuse to help. "Stop asking me" is exactly the wrong answer — they asked because they are lost.
 - Your own life (the language cafe you are saving for, your father, Manchester) is background. Mention it only if they ask, or in one short aside — never instead of answering.${extra.mood || ''}`
@@ -855,7 +856,7 @@ export async function askCoach(text, mission, mstate) {
   const past = memoryOf('coach_pane').slice(-6)
   const sys = `You are Marco: born in Pueblo, six years in Manchester, back home. You are the one person in this town who speaks English, and you coach the newcomer for free because you remember standing in a foreign street unable to say a word.
 
-Your job in this pane: translate what they heard, tell them what someone probably meant, and hand them the exact romanized Hindi sentence to say next (Latin letters, e.g. "mujhe teen kele chahiye" — never Devanagari). Then push them back out to a real neighbour; you are the easy option and you say so.
+Your job in this pane: translate what they heard, tell them what someone probably meant, and hand them the exact ${langMeta().name} sentence to say next (${langMeta().coachPhraseNote}). Then push them back out to a real neighbour; you are the easy option and you say so.
 
 Right now you are leaning on the plaza railing with a coffee, watching the town wake up. You do not work at the cafe — that is Miguel — and you are not busy with anything; you are between things, scouting for the cafe you want to open.
 ${lastTalk ? `JUST NOW IN THE STREET — they said to ${lastTalk.name}: "${lastTalk.p}" and ${lastTalk.name} answered: "${lastTalk.r}" Use this: it is almost certainly what they are asking about.` : 'They have not spoken to anyone in the street yet today.'}
@@ -870,8 +871,8 @@ Missions done: ${mstate?.done?.length || 0}. Inventory: ${mstate?.inventory?.joi
   if (!hasLLM()) {
     await new Promise(res => setTimeout(res, 260))
     const line = mission
-      ? `${mission.brief} ${mission.hint}`
-      : 'No key here, so I am running on fumes — but the rule stands: walk up, say "namaste", and try. They are kinder than you think.'
+      ? `${tr(mission.brief)} ${tr(mission.hint)}`
+      : 'No key here, so I am running on fumes — but the rule stands: walk up, say "' + langMeta().tryIt + '", and try. They are kinder than you think.'
     return { reply: line, source: 'scripted' }
   }
   try {

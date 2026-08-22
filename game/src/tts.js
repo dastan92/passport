@@ -75,6 +75,8 @@ const CHARACTER = {
 // The probe is kept as a promise, not just a flag: the first line is often
 // spoken before the fetch resolves, and reading the not-yet-set flag used to
 // silently downgrade that line to a browser voice.
+import { currentLang, langMeta } from './lang.js'
+
 let fishAvailable = null
 let fishProbe = null
 function probeFish() {
@@ -100,7 +102,7 @@ async function speakFish(text, residentId, onDone) {
     const res = await fetch('/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, resident: residentId }),
+      body: JSON.stringify({ text, resident: residentId, lang: currentLang() }),
     })
     if (!res.ok) return false
     // stop()/mute/a newer line arrived while the network call was outstanding
@@ -162,7 +164,7 @@ function speakBrowser(text, residentId, onDone) {
     if (hi.length) u.voice = hi[ch.pick % hi.length]
     // No Hindi voice installed: leave u.voice unset and let the engine pick
     // from the lang hint rather than forcing an en-US voice onto Hindi text.
-    u.lang = u.voice ? u.voice.lang : 'hi-IN'
+    u.lang = u.voice ? u.voice.lang : langMeta().ttsLang
   }
   u.pitch = ch.pitch
   u.rate = ch.rate
