@@ -351,7 +351,7 @@ If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> 
 <figcaption>Fig. 2 — Progression you can hold. One stamp per language you've made a life in.</figcaption>
 </figure>
 
-<p>The campaign structure is a design constraint as much as a feature: it means nothing in this game is allowed to be Spanish-specific. Not the mission system, not the resident architecture, not the world tooling. A new country should be <em>content</em> — a tileset, a cast, a culture file — not a rewrite. Section 7 is largely about how to make that true cheaply.</p>
+<p>The campaign structure is a design constraint as much as a feature: it means nothing in this game is allowed to be Spanish-specific. Not the mission system, not the resident architecture, not the world tooling. A new country should be <em>content</em> — a tileset, a cast, a culture file — not a rewrite. Section 8 is largely about how to make that true cheaply.</p>
 
 <h2>3. Meet the town</h2>
 
@@ -547,7 +547,8 @@ If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> 
 <div class="table-wrap">
 <table>
   <tr><th>Piece</th><th>Choice</th><th>Why</th></tr>
-  <tr><td>Game world</td><td>Phaser 3 + TypeScript, in the browser</td><td>Proven 2D engine, runs everywhere, no install. Top-down tilemap town, WASD + one talk button.</td></tr>
+  <tr><td>Game world</td><td>Phaser 4 + TypeScript, in the browser</td><td>Proven 2D engine, runs everywhere, no install. Top-down tilemap town, WASD + one talk button.</td></tr>
+  <tr><td>Movement &amp; collision</td><td>Grid Engine</td><td>Grid-locked movement, tile collision, pathfinding, follow behaviour. Someone already built Pokémon movement and gave it away under MIT. See §8.</td></tr>
   <tr><td>Resident minds &amp; ears</td><td><code>gemini-3.5-flash-lite</code>, fed your raw microphone audio</td><td>One call: Rosa <em>hears</em> you and answers. No transcription step — see below for why that's the whole ballgame.</td></tr>
   <tr><td>Resident voices</td><td>Streaming Gemini TTS for characters who matter; free browser speech for everyone else</td><td>Rosa gets a real voice. The guy shouting about fish across the plaza does not need one.</td></tr>
   <tr><td>Memory</td><td>Per-resident conversation summaries + a shared "town ledger" of events</td><td>After each chat, the session distills "what Rosa now knows/feels." Gossip = residents reading the ledger.</td></tr>
@@ -603,18 +604,110 @@ Two things worth knowing if you're building this. First, <strong>no Flash-Lite m
 
 <p><strong>Judging speech fairly.</strong> One rule, and it's load-bearing: the game rewards <em>communicating</em>, never accent. The judge asks "did Rosa understand you?" — not "was that native?" A1 you gets credit for being understood at all; B2 you is held to a higher bar. Same as the real town, where nobody has ever been refused bread for rolling an R badly.</p>
 
-<h2>8. The roadmap</h2>
+<h2>8. The hard part is not the AI. It's the town.</h2>
+
+<p>Everything up to here has been the fun part to design and, it turns out, the cheap part to build. Rosa's mind costs pennies an hour. Rosa's <em>bakery</em> — the tiles, the counter, the doorway that knows it's a doorway, the interior nobody sees until they walk in — is where projects like this actually die.</p>
+
+<p>And the campaign structure makes it worse, because it multiplies. Four countries at around forty residents each is <strong>160 characters</strong> who need sprite sheets, personas, schedules and mission hooks. Every shop that gives you a mission needs an interior, which means there are more interior maps than there is overworld. This is the part where the honest thing to do is admit that a person cannot draw their way out of it.</p>
+
+<p>So the design rule for the entire world layer is: <strong>don't draw anything you can inherit, and don't build anything someone has already given away.</strong></p>
+
+<h3>What we're standing on</h3>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Problem</th><th>Someone already solved it</th><th>License</th></tr>
+  <tr><td>Walking around a tile world like it's 1999</td><td><strong>Grid Engine</strong> — grid-locked movement, collision layers, pathfinding, NPCs that follow you</td><td>MIT</td></tr>
+  <tr><td>Drawing 160 characters</td><td><strong>The LPC sprite generator</strong> — define a character as JSON, batch-render the sheet. Its clothing and hair library <em>is</em> our regional variation.</td><td>Mostly CC-BY-SA</td></tr>
+  <tr><td>Authoring many maps per country</td><td><strong>Tiled</strong>, plus its <code>.world</code> files — a manifest that stitches a campaign's towns and interiors into one coordinate space</td><td>Editor GPL; <em>your maps are yours</em></td></tr>
+  <tr><td>NPC spawns, doors, mission triggers</td><td>Tiled <strong>object layers</strong> with typed properties — placed visually, read straight out of JSON</td><td>—</td></tr>
+  <tr><td>A free Japan campaign's worth of art</td><td><strong>Ninja Adventure</strong> — coherent Japanese tileset, characters, UI, music</td><td>CC0</td></tr>
+</table>
+</div>
+
+<p>Grid Engine deserves a specific mention, because it is the single largest "don't build this" win available. The exact movement model this game needs — tile-snapped walking, facing directions, collision, NPCs pathing around a plaza on a schedule — is the thing someone else built, maintained for years, and released under MIT. Adopting it removes a month of subtly wrong collision bugs from the project.</p>
+
+<h3>The town generator we do have to write</h3>
+
+<p>Here's where the research disappointed, usefully. There are lovely procedural city generators out there, and <strong>none of them can generate this game's town</strong> — because in Pueblo a building is not scenery. Every building is a <em>place with a purpose and a person in it</em>: this one is a bakery, the bakery has Rosa, Rosa gives you the bread mission. Generic generators model streets and rooftops. They have no concept of the thing that matters.</p>
+
+<p>Wave Function Collapse deserves its own warning here, because it's the algorithm everyone reaches for and it's the wrong tool. WFC gives you beautiful <em>texture</em> and incoherent <em>structure</em> — it will happily produce a town whose streets don't reach the plaza. Developers who've shipped it publicly concluded it doesn't survive contact with a real game. Use it for grass and clutter; never for the map.<details class="fn"><summary>7</summary><span class="fn-body">The other trap is licensing, and it bites late. Most of the good free art is CC-BY-SA, which is copyleft: art derivatives — including AI reskins — have to be shared alike, and every asset needs crediting. That's survivable, but only if the credits file is generated from day one. Reconstructing the provenance of three hundred assets at launch is a genuinely miserable week.</span></details></p>
+
+<p>So we write one modest generator ourselves: plaza → main street → side streets → lots → buildings tagged by <em>function</em>, emitted as Tiled JSON, then hand-polished. It's a few hundred lines, and it's the piece that makes a country a config file.</p>
+
+<figure>
+<svg viewBox="0 0 640 210" role="img" aria-label="Pipeline diagram: one campaign config file flows through a town generator into Tiled, then into the game, with a country swap changing only the config">
+  <rect class="fill-card" x="14" y="60" width="112" height="62" rx="6"/>
+  <text class="svg-label svg-label-accent" x="70" y="82" text-anchor="middle">campaign.yaml</text>
+  <text class="svg-label svg-label-muted" x="70" y="98" text-anchor="middle">tileset · cast</text>
+  <text class="svg-label svg-label-muted" x="70" y="112" text-anchor="middle">shops · culture</text>
+  <path class="sk-thin" d="M 128 91 L 158 91"/><polygon class="fill-accent" points="164,91 154,86 154,96"/>
+  <rect class="fill-card" x="166" y="60" width="112" height="62" rx="6"/>
+  <text class="svg-label" x="222" y="86" text-anchor="middle">town-graph</text>
+  <text class="svg-label" x="222" y="101" text-anchor="middle">generator</text>
+  <path class="sk-thin" d="M 280 91 L 310 91"/><polygon class="fill-accent" points="316,91 306,86 306,96"/>
+  <rect class="fill-card" x="318" y="60" width="112" height="62" rx="6"/>
+  <text class="svg-label" x="374" y="86" text-anchor="middle">Tiled</text>
+  <text class="svg-label svg-label-muted" x="374" y="101" text-anchor="middle">+ hand polish</text>
+  <path class="sk-thin" d="M 432 91 L 462 91"/><polygon class="fill-accent" points="468,91 458,86 458,96"/>
+  <rect class="fill-card" x="470" y="60" width="112" height="62" rx="6"/>
+  <text class="svg-label svg-label-accent" x="526" y="86" text-anchor="middle">Phaser 4</text>
+  <text class="svg-label svg-label-muted" x="526" y="101" text-anchor="middle">+ Grid Engine</text>
+  <!-- swap loop -->
+  <path class="sk-thin sk-accent2" d="M 70 132 L 70 172 L 526 172 L 526 132" stroke-dasharray="4 5"/>
+  <polygon points="70,128 64,140 76,140" style="fill:var(--accent-2)"/>
+  <text class="svg-label" x="298" y="190" text-anchor="middle" style="fill:var(--accent-2)">a new country changes only the leftmost box</text>
+  <text class="svg-label svg-label-muted" x="298" y="36" text-anchor="middle">the whole world pipeline</text>
+</svg>
+<figcaption>Fig. 8 — If a new campaign requires touching anything but the first box, the architecture failed.</figcaption>
+</figure>
+
+<h3>Where AI actually helps with art (and where it doesn't)</h3>
+
+<p>Worth being precise, because the intuition is backwards. Image models in 2026 are genuinely good at character portraits and props, and still <strong>bad at tilesets</strong> — a tileset has to align to a grid and connect seamlessly at every edge and corner, and general-purpose models paint things that merely <em>look</em> like pixel art at 1024px, with soft edges and a palette that quietly explodes to hundreds of colours.</p>
+
+<p>So the useful move isn't "generate a Japanese tileset." It's <strong>reskinning geometry that's already correct</strong>: take the base tiles, whose grid and perspective are known-good, and restyle the facades and palette per country. Spain's warm plaster and terracotta; Japan's tile roofs and signage. The hard structural work is inherited; the model only changes how it looks.</p>
+
+<p>And the bigger lever isn't pixels at all. The thing an LLM should be mass-producing for this project is <em>content</em> — the forty personas, their schedules, their mission hooks, their opinions about each other. That's the bottleneck that actually scales with campaigns, and it's the one we're best equipped to automate.</p>
+
+<div class="aside">
+<span class="eyebrow">The rule that decides whether campaign #2 ever exists</span>
+Every world asset must be produced by a script, not a session. If making a resident means opening an art tool, then 160 residents means the project quietly ends after Spain. <strong>The pipeline has to be automated during campaign #1, when it feels like premature optimisation</strong> — because that's the only moment it's still cheap to do.
+</div>
+
+<h2>9. The roadmap</h2>
 
 <p>The build order is ruthless about one thing: the magic moment — <em>you say something in Spanish out loud, and a character who remembers you answers</em> — must exist in Phase 1, or nothing else matters. Everything after it is scaffolding around a thing we already know works.</p>
 
 <div class="table-wrap">
 <table>
   <tr><th>Phase</th><th>Ships</th><th>The question it answers</th></tr>
-  <tr><td><strong>1 · La Plaza</strong></td><td>One district, three residents + the coach, working voice loop, two missions.</td><td>Is talking to Rosa actually magical?</td></tr>
+  <tr><td><strong>1 · La Plaza</strong></td><td>One district, three residents + the coach, working voice loop, two missions — built on Phaser 4 + Grid Engine + Tiled, with the sprite pipeline scripted from the first character.</td><td>Is talking to Rosa actually magical?</td></tr>
   <tr><td><strong>2 · Memory</strong></td><td>Persistent resident memory, learner model, i+1 calibration, reputation-based gating to El Mercado.</td><td>Does the town feel <em>alive</em> across days?</td></tr>
   <tr><td><strong>3 · The open world</strong></td><td>All four districts of Pueblo, missions that span residents, gossip ledger, resident schedules.</td><td>Does free roam + missions beat a lesson tree?</td></tr>
   <tr><td><strong>4 · The second stamp</strong></td><td>Borgo, the Italy campaign — built <em>only</em> from content: new tileset, new cast, new culture file. No engine changes allowed.</td><td>Is this a game, or was it one town?</td></tr>
   <tr><td><strong>5 · Maybe</strong></td><td>GPS mode — your campaign town overlays your real neighborhood; the panadería is your actual bakery.</td><td>Was the Pokémon Go idea right all along?</td></tr>
+</table>
+</div>
+
+<h2>Appendix: what to open first</h2>
+
+<p>The shortlist, so day one isn't spent searching. Licenses noted because they decide things later.</p>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Thing</th><th>Where</th><th>License</th></tr>
+  <tr><td>Phaser 4</td><td><a href="https://github.com/phaserjs/phaser">github.com/phaserjs/phaser</a></td><td>MIT</td></tr>
+  <tr><td>Grid Engine</td><td><a href="https://github.com/Annoraaq/grid-engine">github.com/Annoraaq/grid-engine</a></td><td>MIT</td></tr>
+  <tr><td>Tiled</td><td><a href="https://www.mapeditor.org/">mapeditor.org</a> · <a href="https://doc.mapeditor.org/en/stable/manual/worlds/">worlds docs</a></td><td>GPL editor, your maps are yours</td></tr>
+  <tr><td>LPC character generator</td><td><a href="https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator">Universal-LPC-Spritesheet-Character-Generator</a></td><td>Art mostly CC-BY-SA</td></tr>
+  <tr><td>LPC batch tooling</td><td><a href="https://github.com/bluecarrot16/lpctools">bluecarrot16/lpctools</a></td><td>—</td></tr>
+  <tr><td>LPC terrain tiles</td><td><a href="https://opengameart.org/content/lpc-terrains">opengameart.org/content/lpc-terrains</a></td><td>CC-BY-SA</td></tr>
+  <tr><td>UI, icons, grey-boxing</td><td><a href="https://www.kenney.nl/assets/rpg-urban-pack">Kenney RPG Urban Pack</a></td><td>CC0</td></tr>
+  <tr><td>Japan campaign art</td><td><a href="https://pixel-boy.itch.io/ninja-adventure-asset-pack">Ninja Adventure pack</a></td><td>CC0</td></tr>
+  <tr><td>Agent memory patterns to read</td><td><a href="https://github.com/a16z-infra/ai-town">a16z-infra/ai-town</a> — read it, don't fork it</td><td>MIT</td></tr>
+  <tr><td>The original paper</td><td><a href="https://arxiv.org/abs/2304.03442">Generative Agents (Park et al.)</a></td><td>—</td></tr>
+  <tr><td>Gemini model &amp; pricing docs</td><td><a href="https://ai.google.dev/gemini-api/docs/models">ai.google.dev</a> — re-check, preview models move</td><td>—</td></tr>
 </table>
 </div>
 
