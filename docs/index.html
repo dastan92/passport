@@ -1,0 +1,615 @@
+<title>Passport</title>
+<style>
+  :root {
+    --paper: #FAF7F0;
+    --ink: #26231D;
+    --muted: #6B675E;
+    --accent: #2450A4;
+    --accent-2: #B27106;
+    --line: #E2DCCE;
+    --card: #F1EDE1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #151820;
+      --ink: #E9E6DD;
+      --muted: #9A968B;
+      --accent: #7FA3E8;
+      --accent-2: #E0AC3F;
+      --line: #2A2F3C;
+      --card: #1C202B;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #151820;
+    --ink: #E9E6DD;
+    --muted: #9A968B;
+    --accent: #7FA3E8;
+    --accent-2: #E0AC3F;
+    --line: #2A2F3C;
+    --card: #1C202B;
+  }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Charter, "Bitstream Charter", "Iowan Old Style", Georgia, serif;
+    font-size: 1.1rem;
+    line-height: 1.65;
+    margin: 0;
+  }
+  main {
+    max-width: 42rem;
+    margin: 0 auto;
+    padding: 4rem 1.25rem 6rem;
+  }
+  .eyebrow {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 {
+    font-size: clamp(3rem, 9vw, 4.6rem);
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    margin: 0.3rem 0 0.6rem;
+    text-wrap: balance;
+  }
+  .subtitle {
+    font-size: 1.35rem;
+    font-style: italic;
+    color: var(--muted);
+    margin: 0 0 0.75rem;
+  }
+  .byline {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    padding: 0.55rem 0;
+    margin: 2rem 0 3rem;
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  h2 {
+    font-size: 1.9rem;
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 3.5rem 0 1rem;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 1.15rem;
+    margin: 2rem 0 0.5rem;
+  }
+  p { margin: 0 0 1.1rem; }
+  em { font-style: italic; }
+  a { color: var(--accent); }
+
+  figure {
+    margin: 2.2rem 0;
+    text-align: center;
+  }
+  figure svg {
+    max-width: 100%;
+    height: auto;
+    color: var(--ink);
+  }
+  figcaption {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-top: 0.6rem;
+  }
+  .sk { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .sk-thin { fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; }
+  .sk-accent { stroke: var(--accent); }
+  .sk-accent2 { stroke: var(--accent-2); }
+  .fill-accent { fill: var(--accent); stroke: none; }
+  .fill-card { fill: var(--card); stroke: var(--line); stroke-width: 1; }
+  .svg-label {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 11px;
+    fill: currentColor;
+    stroke: none;
+  }
+  .svg-label-accent { fill: var(--accent); }
+  .svg-label-muted { fill: var(--muted); }
+
+  .aside {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+    margin: 1.6rem 0;
+    font-size: 0.98rem;
+  }
+  .aside .eyebrow { display: block; margin-bottom: 0.3rem; }
+
+  details.fn {
+    display: inline;
+  }
+  details.fn > summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15em;
+    height: 1.15em;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--paper);
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.62em;
+    font-weight: bold;
+    cursor: pointer;
+    list-style: none;
+    vertical-align: super;
+    user-select: none;
+  }
+  details.fn > summary::-webkit-details-marker { display: none; }
+  details.fn > summary:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+  details.fn[open] > .fn-body {
+    display: block;
+    background: var(--card);
+    border-left: 3px solid var(--accent);
+    padding: 0.6rem 0.9rem;
+    margin: 0.5rem 0 0.9rem;
+    font-size: 0.92rem;
+    color: var(--muted);
+  }
+
+  .dialogue {
+    border-left: 3px solid var(--accent);
+    padding: 0.2rem 0 0.2rem 1.1rem;
+    margin: 1.4rem 0;
+  }
+  .dialogue p { margin: 0 0 0.45rem; }
+  .dialogue .who {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .dialogue .es { font-style: italic; }
+  .dialogue .tr { color: var(--muted); font-size: 0.92rem; }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .table-wrap { overflow-x: auto; margin: 1.6rem 0; }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: normal;
+  }
+  ul, ol { padding-left: 1.4rem; margin: 0 0 1.1rem; }
+  li { margin-bottom: 0.4rem; }
+  hr {
+    border: none;
+    border-top: 1px solid var(--line);
+    margin: 3rem auto;
+    width: 40%;
+  }
+  code {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--card);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+  }
+</style>
+
+<main>
+<p class="eyebrow">A game design explainer</p>
+<h1>Passport</h1>
+<p class="subtitle">Languages you live in, not languages you study.</p>
+<div class="byline">
+  <span>Design doc · v0.1</span>
+  <span>August 2026</span>
+  <span>Status: nothing built yet, on purpose</span>
+</div>
+
+<h2>1. The problem with how you're learning Spanish</h2>
+
+<p>Here is a thing that happens to millions of people every year: they decide to learn Spanish, they download an app, and they get <em>good at the app</em>.</p>
+
+<p>They maintain a 500-day streak. They know that the bear drinks milk (<em>el oso bebe leche</em>) — a sentence they will need exactly never. Their little green owl is proud of them. And then they land in Madrid, a waiter asks them something extremely normal, and their brain produces a soft dial tone.</p>
+
+<p>This isn't because they're bad at languages. It's because <strong>they were never learning Spanish. They were learning Spanish-flavored trivia.</strong> Tapping word tiles is to speaking a language what watching cooking shows is to cooking — genuinely adjacent, weirdly satisfying, and not the thing.</p>
+
+<figure>
+<svg viewBox="0 0 640 240" role="img" aria-label="A stick figure running on a treadmill made of flashcards, next to a stick figure walking freely through a town">
+  <!-- treadmill side -->
+  <ellipse class="sk" cx="150" cy="185" rx="95" ry="16"/>
+  <line class="sk-thin" x1="70" y1="180" x2="230" y2="180"/>
+  <rect class="fill-card" x="105" y="170" width="26" height="16" rx="2"/>
+  <rect class="fill-card" x="145" y="172" width="26" height="16" rx="2"/>
+  <rect class="fill-card" x="185" y="170" width="26" height="16" rx="2"/>
+  <!-- runner -->
+  <circle class="sk" cx="150" cy="90" r="13"/>
+  <line class="sk" x1="150" y1="103" x2="150" y2="140"/>
+  <line class="sk" x1="150" y1="115" x2="128" y2="128"/>
+  <line class="sk" x1="150" y1="115" x2="172" y2="104"/>
+  <line class="sk" x1="150" y1="140" x2="130" y2="165"/>
+  <line class="sk" x1="150" y1="140" x2="172" y2="162"/>
+  <text class="svg-label svg-label-muted" x="150" y="222" text-anchor="middle">day 500: still on the treadmill</text>
+  <!-- sweat -->
+  <line class="sk-thin" x1="168" y1="80" x2="174" y2="74"/>
+  <line class="sk-thin" x1="171" y1="90" x2="178" y2="88"/>
+  <!-- divider -->
+  <line class="sk-thin" x1="320" y1="30" x2="320" y2="200" stroke-dasharray="4 6"/>
+  <!-- town side -->
+  <polygon class="sk" points="420,150 420,110 445,92 470,110 470,150"/>
+  <rect class="sk" x="438" y="128" width="14" height="22"/>
+  <polygon class="sk" points="500,150 500,118 520,104 540,118 540,150"/>
+  <line class="sk-thin" x1="400" y1="150" x2="590" y2="150"/>
+  <!-- walker -->
+  <circle class="sk sk-accent" cx="565" cy="98" r="13"/>
+  <line class="sk sk-accent" x1="565" y1="111" x2="565" y2="146"/>
+  <line class="sk sk-accent" x1="565" y1="120" x2="548" y2="132"/>
+  <line class="sk sk-accent" x1="565" y1="120" x2="582" y2="130"/>
+  <line class="sk sk-accent" x1="565" y1="146" x2="552" y2="172"/>
+  <line class="sk sk-accent" x1="565" y1="146" x2="580" y2="172"/>
+  <text class="svg-label svg-label-accent" x="490" y="222" text-anchor="middle">day 50: arguing about tomatoes, in Spanish</text>
+</svg>
+<figcaption>Fig. 1 — Two ways to spend your language hours.</figcaption>
+</figure>
+
+<p>Meanwhile, there's a method with a roughly 100% success rate: <strong>move there.</strong> Everyone knows someone who studied French for six years and can't speak it, and someone else who moved to Mexico City with nothing and was functional in six months. The second person didn't have a better app. They had <em>stakes</em>. They needed bread, and the bread was behind a conversation.</p>
+
+<p>Linguists have a boring name for the magic ingredient: <em>comprehensible input</em> — hearing the language, slightly above your level, in situations where you genuinely care what's being said.<details class="fn"><summary>1</summary><span class="fn-body">Stephen Krashen's "input hypothesis," usually written as <em>i+1</em>: you acquire language from input that's one notch above your current level <em>i</em>. Not five notches (noise), not zero notches (no growth). More on the staircase later.</span></details> Add the need to actually <em>produce</em> the language — out loud, to a person, with something on the line — and you get fluency. Remove the stakes and the person, and you get streaks.</p>
+
+<p>So the design question isn't "how do we make flashcards more fun." It's:</p>
+
+<p><strong>Can we build the town?</strong></p>
+
+<h2>2. What if you could just... move there?</h2>
+
+<p>Here's the game. You wake up in a small Spanish town called <strong>Pueblo</strong>. You have a tiny apartment, a map, and a problem: <em>nobody here speaks English.</em></p>
+
+<p>And Pueblo is only the first campaign.</p>
+
+<p>Not "nobody" as in pre-recorded characters with three dialogue options. Nobody as in — every person in this town is a live LLM agent with a name, a job, a personality, a daily schedule, and a memory of every conversation you've ever had with them.<details class="fn"><summary>2</summary><span class="fn-body">This is the architecture from the Stanford "Generative Agents" paper (Park et al., 2023) — the famous "Smallville" demo where 25 LLM agents lived in a town, formed opinions of each other, and once spontaneously organized a Valentine's party. We're borrowing the core loop: persona + schedule + observation + memory. The difference: their agents lived for each other. Ours live for <em>you</em>.</span></details> Rosa the baker opens at seven and is cheerful until noon. Tomás the fisherman exaggerates. Doña Carmen watches the street from her balcony and misses <em>nothing</em>.</p>
+
+<p>You walk up to any of them and press one button, and then <strong>you talk. With your mouth.</strong> They hear you, they answer out loud, and they behave like people — they get confused when you're confusing, delighted when you try, and they <em>remember</em>.</p>
+
+<p>And the game is simply: <strong>live there.</strong> Get breakfast. Make a friend. Do a favor. Get gossiped about. Slowly stop translating in your head, because the town has stopped feeling like Spanish practice and started feeling like your neighborhood.</p>
+
+<div class="aside">
+<span class="eyebrow">The shape of the game</span>
+If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> — top-down open world, walk everywhere, talk to everyone, regions gated by your progress — but with the structure of <strong>GTA</strong>: free roam anywhere that's open, and <em>missions you pick up from people in the world</em>, not from a lesson menu. (With, yes, better graphics than the Game Boy Color. We have modern engines now. The bar has moved.)
+</div>
+
+<h3>Campaigns, like Age of Empires</h3>
+
+<p>This is why the game is called Passport and not Pueblo. <strong>Every campaign is a country, a language, and a town you have to make a life in.</strong> You don't beat Spanish and unlock a Spanish 2 skill tree — you finish your year in Pueblo, get the stamp, and land somewhere the alphabet might not even be the same.</p>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Campaign</th><th>Country</th><th>Language</th><th>What's different about it</th></tr>
+  <tr><td><strong>Pueblo</strong></td><td>Spain</td><td>Spanish</td><td>The first campaign. Warm, loud, everyone's in your business.</td></tr>
+  <tr><td><strong>Borgo</strong></td><td>Italy</td><td>Italian</td><td>Close enough to Spanish that your instincts betray you. Cognate traps.</td></tr>
+  <tr><td><strong>Machi</strong></td><td>Japan</td><td>Japanese</td><td>New writing system, and politeness levels that are a whole second axis of getting it wrong.</td></tr>
+  <tr><td><strong>Colonia</strong></td><td>Mexico</td><td>LatAm Spanish</td><td>You already speak "Spanish." Turns out that was <em>Spain</em> Spanish. Everyone can tell.</td></tr>
+</table>
+</div>
+
+<figure>
+<svg viewBox="0 0 640 250" role="img" aria-label="An open passport with four stamps: Pueblo stamped and complete, Borgo half-stamped in progress, Machi and Colonia still blank">
+  <!-- passport spread -->
+  <rect class="fill-card" x="40" y="30" width="560" height="180" rx="6"/>
+  <line class="sk-thin" x1="320" y1="30" x2="320" y2="210"/>
+  <!-- stamp 1: complete -->
+  <g transform="rotate(-8 130 105)">
+    <rect class="sk sk-accent" x="80" y="70" width="100" height="70" rx="4"/>
+    <text class="svg-label svg-label-accent" x="130" y="98" text-anchor="middle">PUEBLO</text>
+    <text class="svg-label svg-label-accent" x="130" y="114" text-anchor="middle">ESPAÑA</text>
+    <path class="sk sk-accent" d="M 112 124 L 124 134 L 148 112"/>
+  </g>
+  <!-- stamp 2: in progress -->
+  <g transform="rotate(5 250 110)">
+    <rect class="sk sk-accent2" x="205" y="75" width="100" height="70" rx="4" stroke-dasharray="6 5"/>
+    <text class="svg-label" x="255" y="103" text-anchor="middle" style="fill:var(--accent-2)">BORGO</text>
+    <text class="svg-label" x="255" y="119" text-anchor="middle" style="fill:var(--accent-2)">ITALIA</text>
+  </g>
+  <!-- stamp 3: blank -->
+  <rect class="sk-thin" x="350" y="72" width="100" height="70" rx="4" stroke-dasharray="3 6"/>
+  <text class="svg-label svg-label-muted" x="400" y="112" text-anchor="middle">MACHI · 日本</text>
+  <!-- stamp 4: blank -->
+  <rect class="sk-thin" x="475" y="72" width="100" height="70" rx="4" stroke-dasharray="3 6"/>
+  <text class="svg-label svg-label-muted" x="525" y="105" text-anchor="middle">COLONIA</text>
+  <text class="svg-label svg-label-muted" x="525" y="120" text-anchor="middle">MÉXICO</text>
+  <!-- labels -->
+  <text class="svg-label svg-label-muted" x="130" y="175" text-anchor="middle">lived there</text>
+  <text class="svg-label svg-label-muted" x="255" y="180" text-anchor="middle">currently lost</text>
+  <text class="svg-label svg-label-muted" x="462" y="175" text-anchor="middle">not yet</text>
+  <text class="svg-label svg-label-muted" x="320" y="236" text-anchor="middle">the campaign select screen is just your passport</text>
+</svg>
+<figcaption>Fig. 2 — Progression you can hold. One stamp per language you've made a life in.</figcaption>
+</figure>
+
+<p>The campaign structure is a design constraint as much as a feature: it means nothing in this game is allowed to be Spanish-specific. Not the mission system, not the resident architecture, not the world tooling. A new country should be <em>content</em> — a tileset, a cast, a culture file — not a rewrite. Section 7 is largely about how to make that true cheaply.</p>
+
+<h2>3. Meet the town</h2>
+
+<p>Pueblo is small enough to know and big enough to grow into. It's carved into districts, and the districts are secretly a curriculum — roughly one CEFR level each<details class="fn"><summary>3</summary><span class="fn-body">CEFR: the A1 → C2 scale used across Europe for language ability. A1 is "can order coffee slowly," B2 is "can argue with a bureaucrat." Pueblo's districts map to it loosely, the way Pokémon gyms secretly map to a difficulty curve.</span></details> — except nobody ever says the word "curriculum," the same way Pokémon never told you gym badges were a difficulty curve.</p>
+
+<figure>
+<svg viewBox="0 0 640 400" role="img" aria-label="A hand-drawn map of Pueblo with four districts: La Plaza, El Mercado, El Barrio, and El Ayuntamiento">
+  <rect class="fill-card" x="20" y="20" width="600" height="360" rx="8"/>
+  <!-- roads -->
+  <path class="sk-thin" d="M 320 380 L 320 220 L 200 140 M 320 220 L 470 150 M 320 220 L 320 60" stroke-dasharray="1 7" stroke-width="3"/>
+  <!-- La Plaza -->
+  <circle class="sk sk-accent" cx="320" cy="280" r="66"/>
+  <polygon class="sk" points="298,282 298,262 312,252 326,262 326,282"/>
+  <rect class="sk" x="336" y="266" width="18" height="16"/>
+  <text class="svg-label svg-label-accent" x="320" y="318" text-anchor="middle">LA PLAZA · A1</text>
+  <text class="svg-label svg-label-muted" x="320" y="332" text-anchor="middle">café · panadería · fountain</text>
+  <!-- El Mercado -->
+  <circle class="sk" cx="170" cy="120" r="58"/>
+  <path class="sk" d="M 145 118 L 195 118 M 150 118 L 150 134 M 190 118 L 190 134 M 145 118 Q 170 100 195 118"/>
+  <text class="svg-label" x="170" y="158" text-anchor="middle">EL MERCADO · A2</text>
+  <!-- El Barrio -->
+  <circle class="sk" cx="490" cy="120" r="58"/>
+  <polygon class="sk" points="468,130 468,112 480,103 492,112 492,130"/>
+  <polygon class="sk" points="496,130 496,114 507,106 518,114 518,130"/>
+  <text class="svg-label" x="490" y="158" text-anchor="middle">EL BARRIO · B1</text>
+  <!-- Ayuntamiento -->
+  <circle class="sk sk-accent2" cx="320" cy="55" r="34" stroke-dasharray="5 5"/>
+  <rect class="sk" x="304" y="46" width="32" height="20"/>
+  <line class="sk-thin" x1="304" y1="46" x2="320" y2="36"/>
+  <line class="sk-thin" x1="336" y1="46" x2="320" y2="36"/>
+  <text class="svg-label svg-label-muted" x="320" y="102" text-anchor="middle">EL AYUNTAMIENTO · B2</text>
+  <!-- you are here -->
+  <circle class="fill-accent" cx="320" cy="360" r="5"/>
+  <text class="svg-label svg-label-accent" x="334" y="365">you</text>
+  <!-- locked marker -->
+  <text class="svg-label svg-label-muted" x="405" y="40">← locked (for now)</text>
+</svg>
+<figcaption>Fig. 3 — Pueblo. The map is the curriculum; the curriculum is a map.</figcaption>
+</figure>
+
+<div class="table-wrap">
+<table>
+  <tr><th>District</th><th>Level</th><th>Life there</th><th>Sample missions</th></tr>
+  <tr><td><strong>La Plaza</strong></td><td>A1</td><td>The café, the bakery, the fountain. Greetings, food, numbers, small talk.</td><td>Order breakfast. Learn three names. Buy bread without pointing.</td></tr>
+  <tr><td><strong>El Mercado</strong></td><td>A2</td><td>Market stalls, haggling, opinions about produce (strong ones).</td><td>Shop from a list. Haggle Tomás down. Return a fish that has gone wrong.</td></tr>
+  <tr><td><strong>El Barrio</strong></td><td>B1</td><td>Neighbors, gossip, favors, feuds, the past tense (because gossip requires it).</td><td>Convince Doña Carmen you didn't break her flowerpot. Mediate a dispute. Get invited to dinner.</td></tr>
+  <tr><td><strong>El Ayuntamiento</strong></td><td>B2</td><td>The town hall. Forms, appointments, being sent to a different window.</td><td>Register your address. File a noise complaint. The final boss: <em>get a permit</em>.</td></tr>
+</table>
+</div>
+
+<p>Two things make this open-world rather than a course wearing a costume:</p>
+
+<p><strong>Free roam is real.</strong> Anywhere that's unlocked, you can wander. Eavesdrop on the plaza. Skip the bakery for a week. Spend an afternoon following Tomás around for no reason. The town doesn't wait for you to finish Unit 3 — it just runs.</p>
+
+<p><strong>Missions come from people, not menus.</strong> Rosa asks you to deliver bread to her sister in El Barrio — that's a mission, and its Spanish objective (directions, introductions, relaying a message) is smuggled inside the errand. You accept it by saying yes, out loud, to Rosa. There is no quest log screen with lesson titles. There's just a town full of people who need things and a growing list of people who owe you one.</p>
+
+<p>How do districts unlock? Pokémon Silver had gym badges; Pueblo has <strong>reputation</strong>. Handle enough of life in La Plaza — not a quiz, actual life: the missions, the small talk, being understood — and word spreads. Someone mentions you to their cousin in El Mercado. The cousin has a problem. Suddenly you have a reason to be there, and a person expecting you. The gate was never a wall; it was whether anyone over there knew your name.</p>
+
+<h2>4. The people are alive</h2>
+
+<p>The single most important design decision: <strong>NPCs are not chatbots with skins. They're residents.</strong> Each one is built from three parts:</p>
+
+<figure>
+<svg viewBox="0 0 640 260" role="img" aria-label="Anatomy of an NPC: persona, daily schedule, and memory of you, feeding into one character">
+  <!-- three boxes -->
+  <rect class="fill-card" x="30" y="30" width="170" height="90" rx="6"/>
+  <text class="svg-label svg-label-accent" x="115" y="52" text-anchor="middle">PERSONA</text>
+  <text class="svg-label" x="115" y="72" text-anchor="middle">Rosa, 58, baker.</text>
+  <text class="svg-label" x="115" y="87" text-anchor="middle">Proud. Teases people</text>
+  <text class="svg-label" x="115" y="102" text-anchor="middle">she likes.</text>
+  <rect class="fill-card" x="235" y="30" width="170" height="90" rx="6"/>
+  <text class="svg-label svg-label-accent" x="320" y="52" text-anchor="middle">SCHEDULE</text>
+  <text class="svg-label" x="320" y="72" text-anchor="middle">05:00 bake · 07:00 open</text>
+  <text class="svg-label" x="320" y="87" text-anchor="middle">14:00 lunch w/ Carmen</text>
+  <text class="svg-label" x="320" y="102" text-anchor="middle">20:00 close, tired</text>
+  <rect class="fill-card" x="440" y="30" width="170" height="90" rx="6"/>
+  <text class="svg-label svg-label-accent" x="525" y="52" text-anchor="middle">MEMORY OF YOU</text>
+  <text class="svg-label" x="525" y="72" text-anchor="middle">Day 3: botched "quisiera"</text>
+  <text class="svg-label" x="525" y="87" text-anchor="middle">Day 5: delivered bread ✓</text>
+  <text class="svg-label" x="525" y="102" text-anchor="middle">Likes: croissants, tries hard</text>
+  <!-- arrows down -->
+  <path class="sk-thin" d="M 115 120 L 115 150 L 300 175"/>
+  <path class="sk-thin" d="M 320 120 L 320 172"/>
+  <path class="sk-thin" d="M 525 120 L 525 150 L 340 175"/>
+  <!-- character -->
+  <circle class="sk sk-accent" cx="320" cy="200" r="16"/>
+  <line class="sk sk-accent" x1="320" y1="216" x2="320" y2="242"/>
+  <line class="sk sk-accent" x1="320" y1="224" x2="300" y2="236"/>
+  <line class="sk sk-accent" x1="320" y1="224" x2="340" y2="236"/>
+  <text class="svg-label svg-label-accent" x="352" y="206">= Rosa</text>
+</svg>
+<figcaption>Fig. 4 — The anatomy of a resident. The third box is the one no app has.</figcaption>
+</figure>
+
+<p>The <strong>memory</strong> is where the game stops being software and starts being a place. Rosa remembers that you mangled <em>quisiera</em> on Tuesday, and on Thursday, when you nail it, she notices — out loud, with the exact teasing warmth of a person who watched you struggle. Doña Carmen remembers the flowerpot <em>forever</em>. You will earn forgiveness in installments, like in real life.</p>
+
+<p>And because residents have schedules and relationships with <em>each other</em>, the town has weather systems of gossip. Help Tomás at the market and Rosa hears about it before you're back in the plaza. Your reputation isn't a number in a corner of the screen — it's distributed across the memories of everyone you've met, which is what a reputation actually is.</p>
+
+<h3>They speak at your level — and climb with you</h3>
+
+<p>Here's the trick that makes the whole thing work as a <em>learning</em> game. Every resident calibrates their Spanish to sit one small step above yours — the <em>i+1</em> sweet spot. On day one, Rosa speaks to you the way you'd speak to a lost tourist: slow, simple, generous with gestures. Three weeks in, she's using the past tense at you, because you've earned it. The town gets harder <em>exactly as fast as you do</em>, which is a thing no textbook and no human immersion experience can actually promise.<details class="fn"><summary>4</summary><span class="fn-body">Real immersion is i+1 by luck: some strangers slow down for you, most don't. Pueblo is i+1 by design — every resident is running a model of what you can currently understand, and aims just past it. It's the one place the simulation is genuinely <em>better</em> than moving to Spain.</span></details></p>
+
+<figure>
+<svg viewBox="0 0 640 250" role="img" aria-label="A staircase where each step is labeled with your level, and a resident always stands one step above you">
+  <!-- staircase -->
+  <path class="sk" d="M 60 210 L 160 210 L 160 175 L 260 175 L 260 140 L 360 140 L 360 105 L 460 105 L 460 70 L 560 70"/>
+  <!-- you -->
+  <circle class="sk sk-accent" cx="210" cy="145" r="10"/>
+  <line class="sk sk-accent" x1="210" y1="155" x2="210" y2="173"/>
+  <line class="sk sk-accent" x1="210" y1="160" x2="198" y2="168"/>
+  <line class="sk sk-accent" x1="210" y1="160" x2="222" y2="168"/>
+  <text class="svg-label svg-label-accent" x="210" y="132" text-anchor="middle">you (i)</text>
+  <!-- npc one step up -->
+  <circle class="sk" cx="310" cy="110" r="10"/>
+  <line class="sk" x1="310" y1="120" x2="310" y2="138"/>
+  <line class="sk" x1="310" y1="125" x2="298" y2="133"/>
+  <line class="sk" x1="310" y1="125" x2="325" y2="120"/>
+  <text class="svg-label" x="310" y="97" text-anchor="middle">Rosa (i+1)</text>
+  <!-- reaching line -->
+  <path class="sk-thin sk-accent2" d="M 222 150 Q 265 115 296 118" stroke-dasharray="3 4"/>
+  <text class="svg-label svg-label-muted" x="480" y="55" text-anchor="middle">…fluency up here</text>
+</svg>
+<figcaption>Fig. 5 — The i+1 staircase. Rosa always stands one step up, holding out a hand.</figcaption>
+</figure>
+
+<h2>5. You have to actually talk</h2>
+
+<p>Passport is <strong>voice-first</strong>. You speak into your microphone; residents answer in actual audio, with actual voices — Rosa sounds like Rosa. Subtitles exist, in Spanish, as training wheels you'll eventually turn off. There is deliberately no "type instead" button on the main path.<details class="fn"><summary>5</summary><span class="fn-body">Accessibility note, because someone will rightly ask: a text mode will exist as an accessibility setting for players who can't use voice. It's the accommodation, not the default — the difference matters for everyone who <em>can</em> speak but would rather not, which is, notoriously, all of us.</span></details></p>
+
+<p>Why be strict about this? Because speaking is the part everyone skips, and it's the part that <em>is</em> the skill:</p>
+
+<ul>
+  <li><strong>Retrieval under pressure.</strong> Recognizing <em>quisiera</em> on a card is easy. Producing it while a baker looks at you expectantly is the actual sport. That difficulty is the workout.</li>
+  <li><strong>Your mouth needs reps.</strong> Spanish requires sounds and rhythms English doesn't. You can't learn them silently, the same way you can't learn to whistle by reading.</li>
+  <li><strong>Speaking anxiety is trained away by speaking.</strong> The number-one blocker for real-world learners isn't vocabulary, it's fear. A town of infinitely patient, never-mocking residents is the safest possible place to burn that fear off — hundreds of low-stakes reps before your first real Spanish conversation.</li>
+</ul>
+
+<div class="dialogue">
+<p class="who">Panadería, day 4 · 07:58</p>
+<p class="es">ROSA: ¡Buenos días! ¿Lo de siempre?</p>
+<p class="tr">Good morning! The usual?</p>
+<p class="es">YOU: Eh... sí. Dos... croissants. Y... quisiera un café.</p>
+<p class="es">ROSA: ¡<em>Quisiera</em>! Muy bien. El martes era "kee-see-EH-ra."</p>
+<p class="tr">"Quisiera"! Very good. On Tuesday it was "kee-see-EH-ra."</p>
+<p class="es">YOU: ...gracias, Rosa.</p>
+</div>
+
+<h2>6. Your coach</h2>
+
+<p>One person in Pueblo speaks English: <strong>your coach</strong>. Think of them as the friend who's lived there for years — the one who translates the town for you, not the language.</p>
+
+<p>The coach is <em>not</em> a walking grammar textbook, and crucially, they're not in the conversation with you. Rosa never breaks character to explain the subjunctive; that would puncture the town. Instead, the coach catches you after:</p>
+
+<ul>
+  <li><strong>Debriefs.</strong> "You did great with Tomás. You dodged the past tense twice, though — you said 'today' about a thing that happened yesterday. He noticed. Want to run it back?"</li>
+  <li><strong>Pattern-spotting.</strong> The coach tracks what you're <em>avoiding</em> — the words you route around, the people you haven't dared talk to — and nudges you at it. This is what human tutors do that apps don't.</li>
+  <li><strong>Pointing at doors.</strong> "Rosa's sister runs a stall in El Mercado. You've got the Spanish for it. Go say I sent you."</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 640 220" role="img" aria-label="Two stick figures on a bench, the coach gesturing toward the town, a speech bubble showing a heart and an arrow">
+  <!-- bench -->
+  <line class="sk" x1="200" y1="160" x2="440" y2="160"/>
+  <line class="sk" x1="215" y1="160" x2="215" y2="190"/>
+  <line class="sk" x1="425" y1="160" x2="425" y2="190"/>
+  <!-- you, slumped -->
+  <circle class="sk" cx="270" cy="105" r="12"/>
+  <line class="sk" x1="270" y1="117" x2="272" y2="158"/>
+  <line class="sk" x1="271" y1="130" x2="255" y2="142"/>
+  <line class="sk" x1="271" y1="130" x2="287" y2="140"/>
+  <text class="svg-label svg-label-muted" x="270" y="82" text-anchor="middle">you, post-Carmen</text>
+  <!-- coach -->
+  <circle class="sk sk-accent2" cx="360" cy="100" r="12"/>
+  <line class="sk sk-accent2" x1="360" y1="112" x2="360" y2="158"/>
+  <line class="sk sk-accent2" x1="360" y1="125" x2="342" y2="132"/>
+  <line class="sk sk-accent2" x1="360" y1="125" x2="392" y2="108"/>
+  <text class="svg-label" x="360" y="78" text-anchor="middle">coach</text>
+  <!-- gesture toward town -->
+  <polygon class="sk" points="490,150 490,120 510,105 530,120 530,150"/>
+  <polygon class="sk" points="540,150 540,126 556,114 572,126 572,150"/>
+  <path class="sk-thin sk-accent2" d="M 396 106 Q 440 90 480 110" stroke-dasharray="3 4"/>
+  <text class="svg-label svg-label-muted" x="505" y="180" text-anchor="middle">"you're ready for them"</text>
+</svg>
+<figcaption>Fig. 6 — The coach's whole job: watch, debrief, point at the next door.</figcaption>
+</figure>
+
+<p>Progression, graded by life: when you finish a mission, there's no quiz. The LLM judges the thing that matters — <em>did Rosa's sister actually get the message?</em> Communication is the score. Grammar is just how you raise it.</p>
+
+<h2>7. How it actually works</h2>
+
+<p>The honest tech section. Nothing here is speculative — every piece exists today; the work is assembly and taste.</p>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Piece</th><th>Choice</th><th>Why</th></tr>
+  <tr><td>Game world</td><td>Phaser 3 + TypeScript, in the browser</td><td>Proven 2D engine, runs everywhere, no install. Top-down tilemap town, WASD + one talk button.</td></tr>
+  <tr><td>Resident voices &amp; minds</td><td>Gemini Live API (native audio)</td><td>One API does speech-in → thinking → speech-out with real latency and distinct voices. Each conversation is a live session carrying the resident's persona, memory, and current i+1 level.</td></tr>
+  <tr><td>Memory</td><td>Per-resident conversation summaries + a shared "town ledger" of events</td><td>After each chat, the session distills "what Rosa now knows/feels." Gossip = residents reading the ledger.</td></tr>
+  <tr><td>Learner model</td><td>A running profile of what you've <em>produced</em> correctly</td><td>Words and structures you've actually said, not just seen. Drives every resident's i+1 calibration and the coach's avoidance-radar.</td></tr>
+  <tr><td>Missions</td><td>Authored templates, LLM-judged outcomes</td><td>Humans write the situations (drama needs a writer); the LLM plays them out and judges: did the message land?</td></tr>
+</table>
+</div>
+
+<figure>
+<svg viewBox="0 0 640 190" role="img" aria-label="The voice loop: your speech goes to the resident's mind, which consults memory and your level, and returns speech">
+  <circle class="sk sk-accent" cx="70" cy="90" r="13"/>
+  <line class="sk sk-accent" x1="70" y1="103" x2="70" y2="135"/>
+  <line class="sk sk-accent" x1="70" y1="112" x2="55" y2="122"/>
+  <line class="sk sk-accent" x1="70" y1="112" x2="85" y2="122"/>
+  <text class="svg-label" x="70" y="160" text-anchor="middle">you + mic</text>
+  <path class="sk-thin" d="M 100 80 Q 150 60 200 78"/>
+  <polygon class="fill-accent" points="200,78 190,72 192,84"/>
+  <text class="svg-label svg-label-muted" x="150" y="52" text-anchor="middle">"quisiera un café"</text>
+  <rect class="fill-card" x="215" y="55" width="200" height="75" rx="8"/>
+  <text class="svg-label svg-label-accent" x="315" y="80" text-anchor="middle">ROSA'S MIND</text>
+  <text class="svg-label" x="315" y="98" text-anchor="middle">persona · memory of you</text>
+  <text class="svg-label" x="315" y="113" text-anchor="middle">your level → speak at i+1</text>
+  <path class="sk-thin" d="M 430 95 Q 490 75 540 92"/>
+  <polygon class="fill-accent" points="540,92 530,86 532,98"/>
+  <text class="svg-label svg-label-muted" x="487" y="65" text-anchor="middle">audio, Rosa's voice</text>
+  <circle class="sk" cx="575" cy="105" r="13"/>
+  <line class="sk" x1="575" y1="118" x2="575" y2="150"/>
+  <line class="sk" x1="575" y1="127" x2="560" y2="137"/>
+  <line class="sk" x1="575" y1="127" x2="590" y2="137"/>
+  <text class="svg-label" x="575" y="175" text-anchor="middle">Rosa</text>
+</svg>
+<figcaption>Fig. 7 — One conversational turn. Round trip needs to feel like conversation, not like waiting.</figcaption>
+</figure>
+
+<p>The two hard problems, named honestly:</p>
+
+<ol>
+  <li><strong>Latency.</strong> A conversation with a two-second lag isn't a conversation, it's a séance. Voice-native models (rather than a speech-to-text → LLM → text-to-speech chain) are the bet, and the reason the stack starts with Gemini Live.</li>
+  <li><strong>Judging speech fairly.</strong> The game must reward <em>communicating</em>, not penalize accents. The judge asks "did Rosa understand you?" — never "was that pronunciation native?" A1 you gets credit for being understood at all; B2 you is held to a higher bar. Same as the real town.</li>
+</ol>
+
+<h2>8. The roadmap</h2>
+
+<p>The build order is ruthless about one thing: the magic moment — <em>you say something in Spanish out loud, and a character who remembers you answers</em> — must exist in Phase 1, or nothing else matters.</p>
+
+<div class="table-wrap">
+<table>
+  <tr><th>Phase</th><th>Ships</th><th>The question it answers</th></tr>
+  <tr><td><strong>1 · La Plaza</strong></td><td>One district, three residents + the coach, working voice loop, two missions.</td><td>Is talking to Rosa actually magical?</td></tr>
+  <tr><td><strong>2 · Memory</strong></td><td>Persistent resident memory, learner model, i+1 calibration, reputation-based gating to El Mercado.</td><td>Does the town feel <em>alive</em> across days?</td></tr>
+  <tr><td><strong>3 · The open world</strong></td><td>All four districts, missions that span residents, gossip ledger, resident schedules.</td><td>Does free roam + missions beat a lesson tree?</td></tr>
+  <tr><td><strong>4 · Maybe</strong></td><td>GPS mode — Pueblo overlays your real neighborhood; the panadería is your actual bakery.</td><td>Was the Pokémon Go idea right all along?</td></tr>
+</table>
+</div>
+
+<hr>
+
+<p>One last thing. The saddest object in language learning is the streak — a number that measures the only thing that was never the point: showing up to an app. Passport doesn't have a streak. It has Rosa wondering where you've been, and telling you so, in Spanish, when you finally come back.</p>
+
+<p><em>That's</em> the retention mechanic. It's called a life.</p>
+
+<div class="byline" style="margin-top:3rem">
+  <span>Passport · design doc v0.1</span>
+  <span>github.com/dastan92/passport</span>
+</div>
+</main>
