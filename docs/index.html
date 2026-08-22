@@ -548,7 +548,8 @@ If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> 
 <table>
   <tr><th>Piece</th><th>Choice</th><th>Why</th></tr>
   <tr><td>Game world</td><td>Phaser 3 + TypeScript, in the browser</td><td>Proven 2D engine, runs everywhere, no install. Top-down tilemap town, WASD + one talk button.</td></tr>
-  <tr><td>Resident voices &amp; minds</td><td>Gemini Live API (native audio)</td><td>One API does speech-in → thinking → speech-out with real latency and distinct voices. Each conversation is a live session carrying the resident's persona, memory, and current i+1 level.</td></tr>
+  <tr><td>Resident minds &amp; ears</td><td><code>gemini-3.5-flash-lite</code>, fed your raw microphone audio</td><td>One call: Rosa <em>hears</em> you and answers. No transcription step — see below for why that's the whole ballgame.</td></tr>
+  <tr><td>Resident voices</td><td>Streaming Gemini TTS for characters who matter; free browser speech for everyone else</td><td>Rosa gets a real voice. The guy shouting about fish across the plaza does not need one.</td></tr>
   <tr><td>Memory</td><td>Per-resident conversation summaries + a shared "town ledger" of events</td><td>After each chat, the session distills "what Rosa now knows/feels." Gossip = residents reading the ledger.</td></tr>
   <tr><td>Learner model</td><td>A running profile of what you've <em>produced</em> correctly</td><td>Words and structures you've actually said, not just seen. Drives every resident's i+1 calibration and the coach's avoidance-radar.</td></tr>
   <tr><td>Missions</td><td>Authored templates, LLM-judged outcomes</td><td>Humans write the situations (drama needs a writer); the LLM plays them out and judges: did the message land?</td></tr>
@@ -564,14 +565,16 @@ If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> 
   <text class="svg-label" x="70" y="160" text-anchor="middle">you + mic</text>
   <path class="sk-thin" d="M 100 80 Q 150 60 200 78"/>
   <polygon class="fill-accent" points="200,78 190,72 192,84"/>
-  <text class="svg-label svg-label-muted" x="150" y="52" text-anchor="middle">"quisiera un café"</text>
+  <text class="svg-label svg-label-muted" x="150" y="44" text-anchor="middle">raw audio — never transcribed</text>
+  <text class="svg-label svg-label-muted" x="150" y="58" text-anchor="middle">"kee-see-EH-ra un café"</text>
   <rect class="fill-card" x="215" y="55" width="200" height="75" rx="8"/>
-  <text class="svg-label svg-label-accent" x="315" y="80" text-anchor="middle">ROSA'S MIND</text>
-  <text class="svg-label" x="315" y="98" text-anchor="middle">persona · memory of you</text>
-  <text class="svg-label" x="315" y="113" text-anchor="middle">your level → speak at i+1</text>
+  <text class="svg-label svg-label-accent" x="315" y="78" text-anchor="middle">ROSA'S MIND</text>
+  <text class="svg-label" x="315" y="94" text-anchor="middle">persona · memory of you</text>
+  <text class="svg-label" x="315" y="108" text-anchor="middle">your level → speak at i+1</text>
+  <text class="svg-label svg-label-muted" x="315" y="123" text-anchor="middle">she hears the wobble</text>
   <path class="sk-thin" d="M 430 95 Q 490 75 540 92"/>
   <polygon class="fill-accent" points="540,92 530,86 532,98"/>
-  <text class="svg-label svg-label-muted" x="487" y="65" text-anchor="middle">audio, Rosa's voice</text>
+  <text class="svg-label svg-label-muted" x="487" y="58" text-anchor="middle">TTS → Rosa's voice</text>
   <circle class="sk" cx="575" cy="105" r="13"/>
   <line class="sk" x1="575" y1="118" x2="575" y2="150"/>
   <line class="sk" x1="575" y1="127" x2="560" y2="137"/>
@@ -581,12 +584,24 @@ If you're looking for the genre: it plays like <strong>Pokémon Silver</strong> 
 <figcaption>Fig. 7 — One conversational turn. Round trip needs to feel like conversation, not like waiting.</figcaption>
 </figure>
 
-<p>The two hard problems, named honestly:</p>
+<h3>Why Rosa hears audio and not a transcript</h3>
 
-<ol>
-  <li><strong>Latency.</strong> A conversation with a two-second lag isn't a conversation, it's a séance. Voice-native models (rather than a speech-to-text → LLM → text-to-speech chain) are the bet, and the reason the stack starts with Gemini Live.</li>
-  <li><strong>Judging speech fairly.</strong> The game must reward <em>communicating</em>, not penalize accents. The judge asks "did Rosa understand you?" — never "was that pronunciation native?" A1 you gets credit for being understood at all; B2 you is held to a higher bar. Same as the real town.</li>
-</ol>
+<p>The obvious way to build this is the cheap classic: speech-to-text, feed the text to an LLM, speak the answer back. Don't. <strong>Speech recognition is actively hostile to a game about pronunciation</strong>, because it's doing the opposite of your job — it has a language model inside it whose entire purpose is to guess what you <em>meant</em>. You mangle <em>quisiera</em>, and the transcript helpfully says "quisiera." The evidence is gone before Rosa ever sees it, and the one thing you needed the game to notice has been quietly cleaned up.</p>
+
+<p>So we skip transcription entirely. The player's raw audio goes straight into a model that accepts audio natively, and Rosa reacts to <em>how you actually said it</em>. This costs about four cents an hour of gameplay. It is the single best value in the entire design.</p>
+
+<div class="aside">
+<span class="eyebrow">The Flash-Lite trap</span>
+Two things worth knowing if you're building this. First, <strong>no Flash-Lite model supports the realtime Live API</strong> — that's a different, pricier model tier. Second, and more surprising: <em>the newest Flash-Lite is not the cheapest one.</em> They've been getting more expensive with each release. What makes <code>3.5-flash-lite</code> the right pick anyway is a quiet detail in the pricing table — it's the only one that bills audio input at the plain text rate instead of surcharging it. For a game that is <em>nothing but</em> audio input, that's the whole decision.<details class="fn"><summary>6</summary><span class="fn-body">Verified against Google's docs in August 2026. All the TTS and Live models here are still <em>preview</em>, so IDs and prices can move without deprecation notice — re-check before writing a cheque. Rough figures used above: audio in at $0.30/M tokens (~32 tokens/second of speech), streaming TTS at $20/M audio out.</span></details>
+</div>
+
+<h3>What we're giving up, honestly</h3>
+
+<p>The premium option is Google's Live API — true native audio in and out, sub-second, the closest thing to a phone call. It runs roughly $0.30/hour versus our $0.05–0.15, which isn't the problem. The problem is that it's still a preview product, and we'd be betting a whole game's feel on it.</p>
+
+<p>What the cheaper path costs us is real and worth naming: <strong>about a second of latency, and no interruption.</strong> You can't talk over Rosa. Real conversations are full of barge-in — that's a genuine loss, and if Phase 1 playtests say the town feels like a walkie-talkie, the Live API is the escape hatch and the architecture is designed so we can swap to it without touching anything else.</p>
+
+<p><strong>Judging speech fairly.</strong> One rule, and it's load-bearing: the game rewards <em>communicating</em>, never accent. The judge asks "did Rosa understand you?" — not "was that native?" A1 you gets credit for being understood at all; B2 you is held to a higher bar. Same as the real town, where nobody has ever been refused bread for rolling an R badly.</p>
 
 <h2>8. The roadmap</h2>
 
