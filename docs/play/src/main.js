@@ -98,7 +98,7 @@ renderer.setSize(window.innerWidth, window.innerHeight)
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 1.08
+renderer.toneMappingExposure = 1.0
 
 const scene = new THREE.Scene()
 // The sky is a real Sky dome (vendored addon) rather than a flat clear
@@ -132,7 +132,7 @@ scene.add(sun)
 scene.add(sun.target)
 // Hemisphere drops hard once the environment map exists — keeping it at 1.25
 // would double-count sky bounce and wash the shadows out.
-scene.add(new THREE.HemisphereLight(0xbcd8f0, 0xd8c090, 0.35))
+scene.add(new THREE.HemisphereLight(0xbcd8f0, 0xd8c090, 0.55))
 const fill = new THREE.DirectionalLight(0xffe0c0, 0.3)
 fill.position.set(26, 14, -18)
 scene.add(fill)
@@ -161,7 +161,11 @@ scene.add(fill)
   if (u.showSunDisc) u.showSunDisc.value = 0
   scene.environment = pmrem.fromScene(sky, 0, 0.1, 1100).texture
   if (u.showSunDisc) u.showSunDisc.value = 1
-  scene.environmentIntensity = 0.85
+  // 0.85 blew the whole frame out — the procedural sky's HDR radiance is
+  // enormous, so even a fraction of it as ambient light is a lot. Measured:
+  // 0.85 -> 82% of sampled pixels blown, average luminance 247/255. At 0.12
+  // the frame averages 175 with zero blown pixels — a bright coastal day.
+  scene.environmentIntensity = 0.12
   pmrem.dispose()
 }
 
